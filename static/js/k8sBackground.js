@@ -168,32 +168,31 @@ export class K8sFunGalaxyBackground {
       }
     ];
 
-    // Seed anchor zones leaving the center venue cards open while filling perimeter real estate
+    // Distribute preferentially towards perimeter and corners (leaving central UI stage open)
     for (let i = 0; i < nodeCount; i++) {
       // Pick archetype
       let arch = archetypes[1]; // default service
-      if (i % 6 === 0) arch = archetypes[0]; // K8s master
-      else if (i % 5 === 0) arch = archetypes[3]; // Stateful store
+      if (i % 5 === 0) arch = archetypes[0]; // K8s master
+      else if (i % 4 === 0) arch = archetypes[3]; // Stateful store
       else if (i % 2 === 0) arch = archetypes[2]; // Worker node
 
-      // Distribute preferentially towards perimeter and corners
       let x, y;
-      const margin = 70;
+      const margin = 60;
 
-      // Quadrant allocation for balanced visual interest
-      const quad = i % 4;
-      if (quad === 0) { // Top-Left
-        x = margin + Math.random() * (w * 0.38 - margin);
-        y = margin + Math.random() * (h * 0.40 - margin);
-      } else if (quad === 1) { // Top-Right
-        x = w * 0.62 + Math.random() * (w * 0.38 - margin);
-        y = margin + Math.random() * (h * 0.40 - margin);
-      } else if (quad === 2) { // Bottom-Left
-        x = margin + Math.random() * (w * 0.38 - margin);
-        y = h * 0.60 + Math.random() * (h * 0.38 - margin);
-      } else { // Bottom-Right
-        x = w * 0.62 + Math.random() * (w * 0.38 - margin);
-        y = h * 0.60 + Math.random() * (h * 0.38 - margin);
+      // 4 Distinct Perimeter Zones: Top-Left, Top-Right, Bottom-Left, Bottom-Right
+      const zone = i % 4;
+      if (zone === 0) { // Top-Left flank & corner
+        x = margin + Math.random() * (w * 0.28 - margin);
+        y = margin + Math.random() * (h * 0.45 - margin);
+      } else if (zone === 1) { // Top-Right flank & corner
+        x = w * 0.72 + Math.random() * (w * 0.28 - margin);
+        y = margin + Math.random() * (h * 0.45 - margin);
+      } else if (zone === 2) { // Bottom-Left flank & footer
+        x = margin + Math.random() * (w * 0.32 - margin);
+        y = h * 0.65 + Math.random() * (h * 0.35 - margin);
+      } else { // Bottom-Right flank & footer
+        x = w * 0.68 + Math.random() * (w * 0.32 - margin);
+        y = h * 0.65 + Math.random() * (h * 0.35 - margin);
       }
 
       this.nodes.push({
@@ -326,6 +325,19 @@ export class K8sFunGalaxyBackground {
       if (node.x > w - pad) { node.x = w - pad; node.vx = -Math.abs(node.vx); }
       if (node.y < pad) { node.y = pad; node.vy = Math.abs(node.vy); }
       if (node.y > h - pad) { node.y = h - pad; node.vy = -Math.abs(node.vy); }
+
+      // Keep center UI stage (title + venue cards) clear and legible
+      const centerX = w * 0.5;
+      const centerY = h * 0.5;
+      const dxCenter = node.x - centerX;
+      const dyCenter = node.y - centerY;
+      const distCenter = Math.hypot(dxCenter, dyCenter);
+      const minCenterDist = Math.min(w * 0.30, 360);
+      if (distCenter < minCenterDist && distCenter > 0) {
+        const push = (1 - distCenter / minCenterDist) * 1.6;
+        node.vx += (dxCenter / distCenter) * push;
+        node.vy += (dyCenter / distCenter) * push;
+      }
 
       // Orbiting Envoy satellites
       node.orbitAngle += node.orbitSpeed;
