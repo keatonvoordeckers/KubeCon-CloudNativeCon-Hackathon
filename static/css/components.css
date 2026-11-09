@@ -923,3 +923,62 @@
     display: none;
   }
 }
+
+/* ======================================================== */
+/* Full-screen pannable floor plan (click + drag to move,   */
+/* double-click empty space to re-center). Kept last so it  */
+/* overrides the fixed-size, offset canvas rules above.     */
+/* ======================================================== */
+#view-map .isometric-canvas-wrapper,
+#view-map .isometric-canvas-wrapper:hover {
+  position: absolute;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  transform: none;
+  z-index: 0;
+}
+
+#view-map .salt-palace-isometric-svg {
+  max-width: none;
+}
+
+/* Keep the controls above the map now that it fills the screen */
+#view-map .map-level-badge,
+#view-map .level-tabs,
+#view-map .density-legend,
+#view-map .bottom-floating-talk-card {
+  z-index: 2;
+}
+
+/* The left sidebar was removed, so line the level badge up with the search bar */
+#view-map .map-level-badge {
+  left: 2rem;
+}
+
+/* ---- Bug fixes ---- */
+/* Day dropdown options: dark text-on-white was unreadable in some browsers */
+#filter-day option {
+  background: #1e293b;
+  color: #f8fafc;
+}
+
+/* Search box: hide the browser's built-in clear "x" (we have our own) */
+.search-input-field::-webkit-search-cancel-button,
+.search-input-field::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+/* The talk card was hidden on screens under 1100px wide, so clicking a talk showed nothing.
+   Keep it visible, just smaller. */
+@media (max-width: 1100px) {
+  #view-map .bottom-floating-talk-card {
+    display: flex;
+    width: min(360px, calc(100vw - 2rem));
+    right: 1rem;
+    bottom: 1rem;
+    padding: 1.1rem 1.25rem;
+  }
+}

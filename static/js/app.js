@@ -1,4 +1,4 @@
-import { API, toSvgRoomId } from './api.js';
+import { API, toSvgRoomId, svgRoomPrefixes } from './api.js';
 import { State } from './state.js';
 import { Schedule } from './schedule.js';
 import { MOCK_TALKS } from './mockData.js';
@@ -92,12 +92,16 @@ function currentFilters() {
 function paintHeatmap(roomCounts = {}) {
   const svgDoc = floorplanObject?.contentDocument;
   if (!svgDoc) return;
+  const maxCount = Math.max(0, ...Object.values(roomCounts));
   svgDoc.querySelectorAll('.map-room[data-room]').forEach(room => {
     const id = room.getAttribute('data-room');
     if (id.startsWith('260')) return; // quiet rooms keep their own style
     const n = roomCounts[id] || 0;
-    const top = room.querySelector('.room-top');
-    if (top) top.style.fill = n >= 15 ? '#c2410c' : n >= 6 ? '#f97316' : n > 0 ? '#fdba74' : '#334155';
+    // Color relative to the busiest room, so the map still shows contrast when every room is busy
+    const share = maxCount > 0 ? n / maxCount : 0;
+    const fill = n === 0 ? '#334155' : share >= 0.66 ? '#c2410c' : share >= 0.33 ? '#f97316' : '#fdba74';
+    // Some rooms have several shapes (Hall DE is drawn as Hall E + Hall D)
+    room.querySelectorAll('.room-top').forEach(top => { top.style.fill = fill; });
     // Show the number too, not color alone
     const zone = room.getAttribute('data-zone');
     room.setAttribute('aria-label',
@@ -223,6 +227,13 @@ function attachSvgRoomClickListeners() {
   });
 }
 
+// "HALL-BC" → "Hall BC", "BALLROOM" → "Grand Ballroom", "255" → "Room 255"
+function roomDisplayName(roomId) {
+  if (roomId.startsWith('HALL-')) return `Hall ${roomId.slice(5)}`;
+  if (roomId === 'BALLROOM') return 'Grand Ballroom';
+  return `Room ${roomId}`;
+}
+
 async function handleSvgRoomClick(roomId, level, zone) {
   if (!roomId) return;
 
@@ -238,14 +249,14 @@ async function handleSvgRoomClick(roomId, level, zone) {
   // filter, so "room + question" would claim 10 matches even in rooms that barely match.
   const res = await API.search({
     venue: 'Salt Palace',
-    room: roomId,
+    room: svgRoomPrefixes(roomId), // e.g. Hall 1 → ["Solutions Showcase | Hall 1", "Halls A-C"]
     ...currentFilters(),
   });
   const matchingTalk = res.talks[0];
 
   if (matchingTalk) {
     displayActiveTalk(matchingTalk);
-    announce(`Room ${roomId}: ${res.total} ${res.total === 1 ? 'talk' : 'talks'}. Showing ${matchingTalk.title}`);
+    announce(`${roomDisplayName(roomId)}: ${res.total} ${res.total === 1 ? 'talk' : 'talks'}. Showing ${matchingTalk.title}`);
   } else {
     displayRoomPlaceholder(roomId, level, zone);
     announce(`Selected Room ${roomId}, Level ${level}`);
@@ -308,10 +319,11 @@ function setupEventListeners() {
   cardSelectSaltPalace.addEventListener('click', () => switchView('map'));
   cardSelectOther.addEventListener('click', () => switchView('offsite'));
 
-  btnBrandHome.addEventListener('click', () => switchView('landing'));
-  navBtnHome.addEventListener('click', () => switchView('landing'));
-  navBtnMap.addEventListener('click', () => switchView('map'));
-  navBtnOffsite.addEventListener('click', () => switchView('offsite'));
+  // Brand badge and left sidebar were removed from the UI; keep these null-safe
+  btnBrandHome?.addEventListener('click', () => switchView('landing'));
+  navBtnHome?.addEventListener('click', () => switchView('landing'));
+  navBtnMap?.addEventListener('click', () => switchView('map'));
+  navBtnOffsite?.addEventListener('click', () => switchView('offsite'));
 
   btnBackToVenuesFromMap.addEventListener('click', () => switchView('landing'));
   btnBackToVenuesFromOffsite.addEventListener('click', () => switchView('landing'));
@@ -378,6 +390,7 @@ function setupEventListeners() {
     searchInput.value = '';
     searchClearBtn.style.display = 'none';
     searchDropdown.style.display = 'none';
+    refreshMap(); // back to the full heatmap (filters still apply)
     searchInput.focus();
   });
 
@@ -430,7 +443,7 @@ function setupEventListeners() {
 
   // 6. Schedule Drawer Open/Close
   btnQuickSchedule.addEventListener('click', openScheduleDrawer);
-  navBtnSchedule.addEventListener('click', openScheduleDrawer);
+  navBtnSchedule?.addEventListener('click', openScheduleDrawer);
   btnCloseSchedule.addEventListener('click', closeScheduleDrawer);
   btnDoneSchedule.addEventListener('click', closeScheduleDrawer);
   drawerBackdrop.addEventListener('click', closeScheduleDrawer);
@@ -447,7 +460,7 @@ function setupEventListeners() {
   });
 
   // 7. Info Modal
-  navBtnInfo.addEventListener('click', () => {
+  navBtnInfo?.addEventListener('click', () => {
     infoModal.style.display = 'flex';
   });
 
@@ -485,7 +498,7 @@ function displayActiveTalk(talk) {
   currentActiveTalk = talk;
   cardTalkTitle.textContent = talk.title;
   cardTalkLocation.querySelector('span').textContent = talk.location?.room_full || `${talk.location?.venue || 'Salt Palace'} · ${talk.location?.room || 'Room'}`;
-  cardTalkDescription.textContent = talk.abstract || 'Join this session to connect with project maintainers and explore cutting-edge cloud native practices.';
+  cardTalkDescription.textContent = (talk.abstract || '').replace(/""/g, '"') || 'Join this session to connect with project maintainers and explore cutting-edge cloud native practices.';
   cardTime.textContent = formatTime(talk.start, talk.end);
 
   const isVerified = talk.accessibility?.wheelchair_accessible === true;
@@ -762,6 +775,7 @@ function closeScheduleDrawer() {
 function updateScheduleBadges() {
   const ids = Schedule.getSavedIds();
   topScheduleCount.textContent = ids.length;
+  if (!dockScheduleBadge) return; // sidebar badge removed from the UI
   if (ids.length > 0) {
     dockScheduleBadge.textContent = ids.length;
     dockScheduleBadge.style.display = 'block';

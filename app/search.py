@@ -24,8 +24,16 @@ def build_filters(day=None, topic=None, registration=None, wheelchair=False, aud
         filters.append({"term": {"location.level": level}})
     if room:
         # The SVG floor plan uses short ids like "250"; the data has "250 A-C" and "250 D-F".
-        # A prefix match covers every section of that room.
-        filters.append({"prefix": {"location.room": room}})
+        # A prefix match covers every section of that room. A list means "any of these"
+        # (e.g. Hall 1 = "Solutions Showcase | Hall 1" or the whole-floor "Halls A-C, Halls 1-5").
+        prefixes = [r for r in ([room] if isinstance(room, str) else room) if r]
+        if len(prefixes) == 1:
+            filters.append({"prefix": {"location.room": prefixes[0]}})
+        elif prefixes:
+            filters.append({"bool": {
+                "should": [{"prefix": {"location.room": r}} for r in prefixes],
+                "minimum_should_match": 1,
+            }})
     return filters
 
 

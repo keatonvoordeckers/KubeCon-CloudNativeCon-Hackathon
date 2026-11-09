@@ -1,16 +1,50 @@
 import { MOCK_TALKS } from './mockData.js';
 
+const ALL_EXPO_HALLS = ['HALL-A', 'HALL-BC', 'HALL-1', 'HALL-2', 'HALL-3', 'HALL-4', 'HALL-5'];
+
 /**
- * Map a room name from the data to the floor plan's data-room id.
- * "255 BC" → "255", "151" → "151", "Hall DE" / "Solutions Showcase | ..." → "150" (Exhibition Halls).
- * Returns null for rooms the floor plan doesn't draw (e.g. Grand Ballrooms).
+ * Map a room name from the data to the floor plan room(s) it occupies (SVG data-room ids).
+ *   "255 BC"                                  → ["255"]
+ *   "Hall DE"                                 → ["HALL-DE"]
+ *   "Solutions Showcase | Hall B | ..."       → ["HALL-BC"]
+ *   "Solutions Showcase | Hall 1 | ..."       → ["HALL-1"]
+ *   "Solutions Showcase | Hall(s) 5 | ..."    → ["HALL-5"]
+ *   "Halls A-C, Halls 1-5" (whole expo floor) → all seven expo halls
+ *   "Grand Ballroom ACE"                      → ["BALLROOM"]
+ * Returns [] for places the floor plan doesn't draw.
  */
-export function toSvgRoomId(roomName = '') {
+export function toSvgRoomIds(roomName = '') {
   const name = String(roomName).trim();
   const num = name.match(/^(\d{3})/);
-  if (num) return num[1];
-  if (/^(Hall|Halls|Solutions Showcase)\b/i.test(name)) return '150';
-  return null;
+  if (num) return [num[1]];
+  if (/^Hall DE\b/i.test(name)) return ['HALL-DE'];
+  if (/^Halls A-C/i.test(name)) return ALL_EXPO_HALLS;
+  if (/\|\s*Hall B\b/i.test(name)) return ['HALL-BC'];
+  if (/\|\s*Hall 1\b/i.test(name)) return ['HALL-1'];
+  if (/\|\s*Halls? 5\b/i.test(name)) return ['HALL-5'];
+  if (/^Grand Ballroom/i.test(name)) return ['BALLROOM'];
+  return [];
+}
+
+/** First floor plan room for a data room (used to highlight one room), or null. */
+export function toSvgRoomId(roomName = '') {
+  return toSvgRoomIds(roomName)[0] || null;
+}
+
+/** Reverse mapping for room clicks: data room-name prefixes that belong to an SVG room id. */
+export function svgRoomPrefixes(svgId) {
+  const map = {
+    'HALL-DE': ['Hall DE'],
+    'HALL-A': ['Halls A-C'],
+    'HALL-BC': ['Solutions Showcase | Hall B', 'Halls A-C'],
+    'HALL-1': ['Solutions Showcase | Hall 1', 'Halls A-C'],
+    'HALL-2': ['Halls A-C'],
+    'HALL-3': ['Halls A-C'],
+    'HALL-4': ['Halls A-C'],
+    'HALL-5': ['Solutions Showcase | Hall 5', 'Solutions Showcase | Halls 5', 'Halls A-C'],
+    'BALLROOM': ['Grand Ballroom'],
+  };
+  return map[svgId] || [String(svgId)];
 }
 
 export const API = {
@@ -24,7 +58,8 @@ export const API = {
         const query = new URLSearchParams();
         for (const [k, v] of Object.entries(params)) {
           if (v !== undefined && v !== null && v !== '') {
-            query.append(k, v);
+            // Arrays become repeated params: room=Hall%201&room=Halls%20A-C
+            (Array.isArray(v) ? v : [v]).forEach(x => query.append(k, x));
           }
         }
         const endpoint = `${this.apiBaseUrl}/search?${query.toString()}`;
@@ -89,8 +124,8 @@ export const API = {
           v.levels.forEach(l => {
             levels[l.key] = l.count;
             l.rooms.forEach(r => {
-              const id = toSvgRoomId(r.key); // "250 A-C" → "250" (the SVG's data-room id)
-              if (id) rooms[id] = (rooms[id] || 0) + r.count;
+              // "250 A-C" → "250"; "Halls A-C, Halls 1-5" counts toward every expo hall it spans
+              toSvgRoomIds(r.key).forEach(id => { rooms[id] = (rooms[id] || 0) + r.count; });
             });
           });
         }
@@ -119,7 +154,7 @@ export const API = {
     const wheelchair = params.wheelchair === true || params.wheelchair === 'true';
     const venue = params.venue || '';
     const level = params.level || '';
-    const room = params.room || '';
+    const roomPrefixes = [].concat(params.room || []).filter(Boolean);
 
     // Filter talks
     const filtered = MOCK_TALKS.filter(talk => {
@@ -178,7 +213,7 @@ export const API = {
       }
 
       // Room filter (prefix, same as backend: "250" matches "250 A-C")
-      if (room && !(talk.location?.room || '').startsWith(room)) {
+      if (roomPrefixes.length && !roomPrefixes.some(r => (talk.location?.room || '').startsWith(r))) {
         return false;
       }
 
@@ -199,8 +234,7 @@ export const API = {
         const l = talk.location?.level;
         if (l) levels[l] = (levels[l] || 0) + 1;
 
-        const r = toSvgRoomId(talk.location?.room);
-        if (r) rooms[r] = (rooms[r] || 0) + 1;
+        toSvgRoomIds(talk.location?.room).forEach(r => { rooms[r] = (rooms[r] || 0) + 1; });
       }
     });
 

@@ -1,7 +1,7 @@
 import os
 
 from elasticsearch import Elasticsearch
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 
@@ -31,10 +31,11 @@ def health():
 def search(q: str = "", day: str | None = None, topic: str | None = None,
            registration: str | None = None, wheelchair: bool = False,
            audience: str | None = None, venue: str | None = None,
-           level: str | None = None, room: str | None = None):
+           level: str | None = None, room: list[str] | None = Query(None)):
     """
     Hybrid search + filters. Returns matching talks and venue/level/room counts for the heatmap.
     venue/level/room let the floor plan ask for one place, e.g. ?venue=Salt Palace&room=250
+    (room can repeat: &room=Solutions Showcase | Hall 1&room=Halls A-C)
     """
     filters = build_filters(day, topic, registration, wheelchair, audience, venue, level, room)
     query = build_query(q, filters)
