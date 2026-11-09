@@ -1,0 +1,128 @@
+{
+  "mappings": {
+    "properties": {
+      "id": {
+        "type": "keyword"
+      },
+      "title": {
+        "type": "text",
+        "fields": {
+          "suggest": {
+            "type": "search_as_you_type"
+          },
+          "raw": {
+            "type": "keyword"
+          }
+        }
+      },
+      "title_raw": {
+        "type": "text"
+      },
+      "abstract": {
+        "type": "text"
+      },
+      "speakers": {
+        "properties": {
+          "name": {
+            "type": "text",
+            "fields": {
+              "raw": {
+                "type": "keyword"
+              }
+            }
+          },
+          "company": {
+            "type": "keyword"
+          }
+        }
+      },
+      "start": {
+        "type": "date"
+      },
+      "end": {
+        "type": "date"
+      },
+      "day": {
+        "type": "date",
+        "format": "yyyy-MM-dd"
+      },
+      "location": {
+        "properties": {
+          "venue": {
+            "type": "keyword"
+          },
+          "level": {
+            "type": "keyword"
+          },
+          "room": {
+            "type": "keyword"
+          },
+          "room_full": {
+            "type": "text",
+            "fields": {
+              "raw": {
+                "type": "keyword"
+              }
+            }
+          },
+          "address": {
+            "type": "text"
+          },
+          "offsite": {
+            "type": "boolean"
+          }
+        }
+      },
+      "topics": {
+        "type": "keyword"
+      },
+      "topics_inferred": {
+        "type": "keyword"
+      },
+      "format": {
+        "type": "keyword"
+      },
+      "audience_level": {
+        "type": "keyword"
+      },
+      "end_user_talk": {
+        "type": "boolean"
+      },
+      "slides_available": {
+        "type": "boolean"
+      },
+      "registration": {
+        "properties": {
+          "type": {
+            "type": "keyword"
+          },
+          "label": {
+            "type": "text"
+          },
+          "sold_out": {
+            "type": "boolean"
+          }
+        }
+      },
+      "accessibility": {
+        "properties": {
+          "status": {
+            "type": "keyword"
+          },
+          "wheelchair_accessible": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": "text"
+          },
+          "source": {
+            "type": "keyword"
+          }
+        }
+      },
+      "url": {
+        "type": "keyword"
+      }
+    }
+  }
+}
