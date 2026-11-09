@@ -2759,7 +2759,7 @@ Every page of <https://docs.gitar.ai> consolidated here, in document order.
 
 ## About this compilation
 
-**What was read.** The full Gitar documentation corpus — 63 pages — retrieved from the site's
+**What was read.** The full Gitar documentation corpus — 62 pages — retrieved from the site's
 machine-readable export (`https://docs.gitar.ai/llms-full.txt`, 8,366 lines, ~432 KB) plus the
 `llms.txt` index and `sitemap.xml`. Interactive elements that only exist on the rendered site
 (screenshots, accordions, tab groups) were flattened into prose or lists.

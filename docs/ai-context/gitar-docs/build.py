@@ -2,7 +2,7 @@
 """Assemble parts/*.md into a single agent-readable gitar-docs.md."""
 import re, pathlib
 
-BASE = pathlib.Path("/Users/jorgevelazquez/Documents/deepseek-harness/default-workspace/gitar-docs")
+BASE = pathlib.Path(__file__).resolve().parent
 PARTS = BASE / "parts"
 
 STRUCTURE = [
@@ -76,7 +76,7 @@ back = f"""
 {source_map_md}
 ## About this compilation
 
-**What was read.** The full Gitar documentation corpus — 63 pages — retrieved from the site's
+**What was read.** The full Gitar documentation corpus — 62 pages — retrieved from the site's
 machine-readable export (`https://docs.gitar.ai/llms-full.txt`, 8,366 lines, ~432 KB) plus the
 `llms.txt` index and `sitemap.xml`. Interactive elements that only exist on the rendered site
 (screenshots, accordions, tab groups) were flattened into prose or lists.
