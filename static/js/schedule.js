@@ -1,6 +1,8 @@
 // Personal Schedule Manager with localStorage and Conflict Detection
 
 const STORAGE_KEY = 'kubecon_my_schedule';
+// Full talk objects, so talks from live search (not just mock data) can be shown later
+const TALKS_KEY = 'kubecon_my_schedule_talks';
 
 export const Schedule = {
   listeners: [],
@@ -27,6 +29,22 @@ export const Schedule = {
     }
   },
 
+  getTalkCache() {
+    try {
+      return JSON.parse(localStorage.getItem(TALKS_KEY) || '{}');
+    } catch (e) {
+      return {};
+    }
+  },
+
+  /** Saved talks as full objects; falls back to a lookup list (e.g. mock data) for older saves. */
+  getSavedTalks(fallback = []) {
+    const cache = this.getTalkCache();
+    return this.getSavedIds()
+      .map(id => cache[id] || fallback.find(t => String(t.id) === id))
+      .filter(Boolean);
+  },
+
   hasTalk(talkId) {
     const ids = this.getSavedIds();
     return ids.includes(String(talkId));
@@ -48,6 +66,9 @@ export const Schedule = {
     if (!ids.includes(idStr)) {
       ids.push(idStr);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
+      const cache = this.getTalkCache();
+      cache[idStr] = talk;
+      localStorage.setItem(TALKS_KEY, JSON.stringify(cache));
       this.notify();
     }
   },

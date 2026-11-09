@@ -44,6 +44,17 @@ def test_all_filters_combine():
     assert len(filters) == 5
 
 
+def test_venue_and_level_filters():
+    filters = build_filters(venue="Salt Palace", level="Level 2")
+    assert {"term": {"location.venue": "Salt Palace"}} in filters
+    assert {"term": {"location.level": "Level 2"}} in filters
+
+
+def test_room_uses_prefix_so_svg_ids_match_all_sections():
+    # SVG room "250" must match data rooms "250 A-C" and "250 D-F"
+    assert {"prefix": {"location.room": "250"}} in build_filters(room="250")
+
+
 def test_empty_strings_are_ignored():
     # the frontend may send "" for "any"
     assert build_filters(day="", topic="", registration="", audience="") == []

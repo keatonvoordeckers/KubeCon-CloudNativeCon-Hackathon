@@ -2,6 +2,7 @@ import os
 
 from elasticsearch import Elasticsearch
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 
 from app.search import AGGS, build_filters, build_query, parse_aggs
@@ -29,11 +30,13 @@ def health():
 @app.get("/search")
 def search(q: str = "", day: str | None = None, topic: str | None = None,
            registration: str | None = None, wheelchair: bool = False,
-           audience: str | None = None):
+           audience: str | None = None, venue: str | None = None,
+           level: str | None = None, room: str | None = None):
     """
     Hybrid search + filters. Returns matching talks and venue/level/room counts for the heatmap.
+    venue/level/room let the floor plan ask for one place, e.g. ?venue=Salt Palace&room=250
     """
-    filters = build_filters(day, topic, registration, wheelchair, audience)
+    filters = build_filters(day, topic, registration, wheelchair, audience, venue, level, room)
     query = build_query(q, filters)
 
     knn = None
@@ -66,4 +69,9 @@ def search(q: str = "", day: str | None = None, topic: str | None = None,
         "talks": [hit["_source"] for hit in resp["hits"]["hits"]],
         "venues": parse_aggs(resp["aggregations"]),
     }
+
+
+# Serve the frontend (static/index.html at http://localhost:8000/).
+# Must be LAST: a mount at "/" would otherwise catch /search and /health.
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
 

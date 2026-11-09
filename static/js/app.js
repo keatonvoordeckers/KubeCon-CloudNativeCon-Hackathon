@@ -74,9 +74,48 @@ const a11yAnnouncements = document.getElementById('a11y-announcements');
 let currentActiveTalk = null;
 let searchDebounceTimeout = null;
 let currentView = 'landing'; // 'landing' | 'map' | 'offsite'
+let lastResult = null;        // most recent /search response (talks + counts)
 
 function announce(msg) {
   if (a11yAnnouncements) a11yAnnouncements.textContent = msg;
+}
+
+// Current filter choices (controls are optional; missing ones mean "any")
+function currentFilters() {
+  return {
+    day: document.getElementById('filter-day')?.value || '',
+    wheelchair: document.getElementById('filter-wheelchair')?.checked ? 'true' : '',
+  };
+}
+
+// Color each Salt Palace room by how many matching talks it has (the heatmap)
+function paintHeatmap(roomCounts = {}) {
+  const svgDoc = floorplanObject?.contentDocument;
+  if (!svgDoc) return;
+  svgDoc.querySelectorAll('.map-room[data-room]').forEach(room => {
+    const id = room.getAttribute('data-room');
+    if (id.startsWith('260')) return; // quiet rooms keep their own style
+    const n = roomCounts[id] || 0;
+    const top = room.querySelector('.room-top');
+    if (top) top.style.fill = n >= 15 ? '#c2410c' : n >= 6 ? '#f97316' : n > 0 ? '#fdba74' : '#334155';
+    // Show the number too, not color alone
+    const zone = room.getAttribute('data-zone');
+    room.setAttribute('aria-label',
+      `Room ${id}${zone ? ', ' + zone : ''}, Level ${room.getAttribute('data-level')}, ${n} ${n === 1 ? 'talk' : 'talks'}`);
+  });
+}
+
+function updateLevelCount() {
+  const lvl = document.querySelector('.level-tab-btn.active')?.getAttribute('data-level') || 'Level 2';
+  const n = lastResult?.aggregations?.levels?.[lvl] ?? 0;
+  currentTalkCount.textContent = `${n} ${n === 1 ? 'TALK' : 'TALKS'}`;
+}
+
+// Re-run the search for the map and repaint the heatmap + level count
+async function refreshMap() {
+  lastResult = await API.search({ q: searchInput.value.trim(), ...currentFilters() });
+  paintHeatmap(lastResult.aggregations.rooms);
+  updateLevelCount();
 }
 
 function formatTime(startStr, endStr) {
@@ -114,6 +153,7 @@ function switchView(viewName) {
     const activeTab = document.querySelector('.level-tab-btn.active');
     setFloorplanLevel(activeTab?.getAttribute('data-level') || 'Level 2');
     attachSvgRoomClickListeners();
+    refreshMap();
     announce('Navigated to Salt Palace 3D Map View');
   } else if (viewName === 'offsite') {
     viewOffsite.style.display = 'flex';
@@ -183,7 +223,7 @@ function attachSvgRoomClickListeners() {
   });
 }
 
-function handleSvgRoomClick(roomId, level, zone) {
+async function handleSvgRoomClick(roomId, level, zone) {
   if (!roomId) return;
 
   // 1. Special Sensory Sanctuary Retreat (260A/B)
@@ -193,16 +233,19 @@ function handleSvgRoomClick(roomId, level, zone) {
     return;
   }
 
-  // 2. Find matching talks in this room
-  const matchingTalk = MOCK_TALKS.find(t => {
-    const talkRoom = (t.location?.room || '').toLowerCase();
-    const targetRoom = roomId.toLowerCase();
-    return talkRoom.includes(targetRoom) || targetRoom.includes(talkRoom);
+  // 2. Ask the backend for talks in this room (respects the day/wheelchair filters).
+  // No search text here: semantic search always returns its 10 nearest talks *within* the
+  // filter, so "room + question" would claim 10 matches even in rooms that barely match.
+  const res = await API.search({
+    venue: 'Salt Palace',
+    room: roomId,
+    ...currentFilters(),
   });
+  const matchingTalk = res.talks[0];
 
   if (matchingTalk) {
     displayActiveTalk(matchingTalk);
-    announce(`Selected Room ${roomId}: ${matchingTalk.title}`);
+    announce(`Room ${roomId}: ${res.total} ${res.total === 1 ? 'talk' : 'talks'}. Showing ${matchingTalk.title}`);
   } else {
     displayRoomPlaceholder(roomId, level, zone);
     announce(`Selected Room ${roomId}, Level ${level}`);
@@ -252,6 +295,7 @@ function setupFloorplanSync() {
   };
 
   floorplanObject.addEventListener('load', syncActiveLevel);
+  floorplanObject.addEventListener('load', refreshMap); // paint heatmap once the SVG exists
   window.addEventListener('load', syncActiveLevel, { once: true });
 
   if (floorplanObject.contentDocument?.querySelector('.level-group')) {
@@ -286,6 +330,19 @@ function setupEventListeners() {
         searchDropdown.style.display = 'none';
       }
     }, 200);
+  });
+
+  // Filters: re-run the current search and repaint the heatmap
+  ['filter-day', 'filter-wheelchair'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', async () => {
+      const val = searchInput.value.trim();
+      if (val) {
+        await performSearch(val);
+      } else {
+        await refreshMap();
+      }
+      announce(`Filters updated: ${lastResult?.total ?? 0} talks match`);
+    });
   });
 
   searchClearBtn.addEventListener('click', () => {
@@ -323,8 +380,7 @@ function setupEventListeners() {
       const lvl = tab.getAttribute('data-level');
       currentLevelTitle.textContent = `Salt Palace ${lvl}`;
       
-      const counts = { 'Level 1': '299 TALKS', 'Level 2': '141 TALKS', 'Level 3': '24 TALKS' };
-      currentTalkCount.textContent = counts[lvl] || '141 TALKS';
+      updateLevelCount(); // real count from the last search
       setFloorplanLevel(lvl);
       attachSvgRoomClickListeners();
       announce(`Switched view to ${lvl}. Showing the Salt Palace ${lvl} floor plan.`);
@@ -507,8 +563,13 @@ window.toggleOffsiteSchedule = function(talkId) {
 
 // Perform Semantic Search and Update Dropdown
 async function performSearch(queryText) {
-  const res = await API.search({ q: queryText });
+  const res = await API.search({ q: queryText, ...currentFilters() });
   const talks = res.talks || [];
+
+  // Same response drives the heatmap and level count
+  lastResult = res;
+  paintHeatmap(res.aggregations.rooms);
+  updateLevelCount();
 
   dropdownResultsCount.textContent = `${talks.length} ${talks.length === 1 ? 'talk' : 'talks'}`;
 
@@ -599,7 +660,7 @@ function renderScheduleDrawer() {
     return;
   }
 
-  const savedTalks = savedIds.map(id => MOCK_TALKS.find(t => String(t.id) === String(id))).filter(Boolean);
+  const savedTalks = Schedule.getSavedTalks(MOCK_TALKS);
   const conflicts = Schedule.findConflicts(savedTalks);
   const conflictCount = Object.keys(conflicts).length;
 

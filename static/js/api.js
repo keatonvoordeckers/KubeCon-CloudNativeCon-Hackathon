@@ -16,7 +16,8 @@ export const API = {
         }
         const endpoint = `${this.apiBaseUrl}/search?${query.toString()}`;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        // Hybrid search calls OpenAI for the query embedding, which can take a few seconds.
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
 
         const res = await fetch(endpoint, { signal: controller.signal });
         clearTimeout(timeoutId);
@@ -27,7 +28,7 @@ export const API = {
           return this.normalizeResponse(data);
         }
       } catch (err) {
-        console.warn('Backend /search unreachable, seamlessly falling back to Mock API:', err.message);
+        console.error('Backend /search unreachable, falling back to MOCK data:', err.message);
       }
     }
 
@@ -66,6 +67,23 @@ export const API = {
       Object.assign(venues, aggregations.venues);
     }
 
+    // Our FastAPI backend returns nested counts: venues → levels → rooms.
+    // Flatten them; rooms/levels are for the Salt Palace floor plan only.
+    if (Array.isArray(data.venues)) {
+      data.venues.forEach(v => {
+        venues[v.key] = v.count;
+        if (v.key === 'Salt Palace') {
+          v.levels.forEach(l => {
+            levels[l.key] = l.count;
+            l.rooms.forEach(r => {
+              const id = r.key.split(' ')[0]; // "250 A-C" → "250" (the SVG's data-room id)
+              rooms[id] = (rooms[id] || 0) + r.count;
+            });
+          });
+        }
+      });
+    }
+
     const total = data.total ?? (data.hits?.total?.value ?? talks.length);
 
     return {
@@ -88,6 +106,7 @@ export const API = {
     const wheelchair = params.wheelchair === true || params.wheelchair === 'true';
     const venue = params.venue || '';
     const level = params.level || '';
+    const room = params.room || '';
 
     // Filter talks
     const filtered = MOCK_TALKS.filter(talk => {
@@ -145,6 +164,11 @@ export const API = {
         return false;
       }
 
+      // Room filter (prefix, same as backend: "250" matches "250 A-C")
+      if (room && !(talk.location?.room || '').startsWith(room)) {
+        return false;
+      }
+
       return true;
     });
 
@@ -157,11 +181,14 @@ export const API = {
       const v = talk.location?.venue;
       if (v) venues[v] = (venues[v] || 0) + 1;
 
-      const l = talk.location?.level;
-      if (l) levels[l] = (levels[l] || 0) + 1;
+      // Levels/rooms are for the Salt Palace floor plan; rooms keyed like the SVG ("250")
+      if (v === 'Salt Palace') {
+        const l = talk.location?.level;
+        if (l) levels[l] = (levels[l] || 0) + 1;
 
-      const r = talk.location?.room;
-      if (r) rooms[r] = (rooms[r] || 0) + 1;
+        const r = (talk.location?.room || '').split(' ')[0];
+        if (r) rooms[r] = (rooms[r] || 0) + 1;
+      }
     });
 
     return {
