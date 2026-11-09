@@ -1,4 +1,4 @@
-import { API } from './api.js';
+import { API, toSvgRoomId } from './api.js';
 import { State } from './state.js';
 import { Schedule } from './schedule.js';
 import { MOCK_TALKS } from './mockData.js';
@@ -332,6 +332,35 @@ function setupEventListeners() {
     }, 200);
   });
 
+  // Talk card → full details dialog
+  document.getElementById('card-btn-details')?.addEventListener('click', () => {
+    if (currentActiveTalk) openTalkDetails(currentActiveTalk);
+  });
+  cardTalkTitle.style.cursor = 'pointer';
+  cardTalkTitle.addEventListener('click', () => {
+    if (currentActiveTalk) openTalkDetails(currentActiveTalk);
+  });
+
+  // Details dialog buttons (Escape also closes it: built into <dialog>)
+  const detailsDialog = document.getElementById('talk-details-dialog');
+  document.getElementById('details-close')?.addEventListener('click', () => detailsDialog.close());
+  detailsDialog?.addEventListener('click', e => { if (e.target === detailsDialog) detailsDialog.close(); }); // click backdrop
+  document.getElementById('details-btn-schedule')?.addEventListener('click', () => {
+    if (!detailsTalk) return;
+    const added = Schedule.toggleTalk(detailsTalk);
+    updateDetailsScheduleButton();
+    updateScheduleBadges();
+    if (currentActiveTalk && String(currentActiveTalk.id) === String(detailsTalk.id)) {
+      updateCardScheduleButtonState(added);
+    }
+    announce(added ? `Saved ${detailsTalk.title} to My Schedule` : `Removed ${detailsTalk.title} from schedule`);
+  });
+  document.getElementById('details-btn-map')?.addEventListener('click', () => {
+    if (!detailsTalk) return;
+    detailsDialog.close();
+    showTalkOnMap(detailsTalk);
+  });
+
   // Filters: re-run the current search and repaint the heatmap
   ['filter-day', 'filter-wheelchair'].forEach(id => {
     document.getElementById(id)?.addEventListener('change', async () => {
@@ -466,8 +495,102 @@ function displayActiveTalk(talk) {
   cardAudience.textContent = talk.audience_level || 'All Levels';
   cardTopic.textContent = (talk.topics && talk.topics[0]) || (talk.topics_inferred && talk.topics_inferred[0]) || 'General Track';
 
+  const speakersEl = document.getElementById('card-talk-speakers');
+  if (speakersEl) speakersEl.textContent = speakerLine(talk);
+
   const isSaved = Schedule.hasTalk(talk.id);
   updateCardScheduleButtonState(isSaved);
+}
+
+// "Ada Lovelace (Acme), Grace Hopper" or ''
+function speakerLine(talk) {
+  const names = (talk.speakers || [])
+    .map(s => (typeof s === 'string' ? s : s.company ? `${s.name} (${s.company})` : s.name))
+    .filter(Boolean);
+  return names.length ? `By ${names.join(', ')}` : '';
+}
+
+// Wait until the floor plan SVG has loaded its script (needed the first time the map opens)
+function whenFloorplanReady(fn, tries = 20) {
+  if (floorplanObject?.contentWindow?.selectSaltPalaceRoom) return fn();
+  if (tries > 0) setTimeout(() => whenFloorplanReady(fn, tries - 1), 150);
+}
+
+// Jump to where a talk happens: right venue view, right level, room highlighted, card filled in
+function showTalkOnMap(talk) {
+  if (talk.location?.venue !== 'Salt Palace') {
+    // Hyatt / off-site: no floor plan, so go to the list view and open the full details
+    switchView('offsite');
+    openTalkDetails(talk);
+    return;
+  }
+
+  switchView('map');
+
+  const level = talk.location?.level;
+  const tab = level && document.querySelector(`.level-tab-btn[data-level="${level}"]`);
+  if (tab && !tab.classList.contains('active')) tab.click(); // switches floor + updates count
+
+  displayActiveTalk(talk);
+
+  const roomId = toSvgRoomId(talk.location?.room);
+  whenFloorplanReady(() => {
+    if (roomId) floorplanObject.contentWindow.selectSaltPalaceRoom(roomId);
+  });
+
+  announce(`${talk.title}. ${talk.location?.room_full || ''}. ${formatTime(talk.start, talk.end)}`);
+}
+
+// Full talk details: title, speakers, time, place, registration, accessibility, abstract
+let detailsTalk = null;
+
+function openTalkDetails(talk) {
+  const dialog = document.getElementById('talk-details-dialog');
+  if (!dialog || !talk) return;
+  detailsTalk = talk;
+
+  document.getElementById('details-title').textContent = talk.title;
+  document.getElementById('details-speakers').textContent = speakerLine(talk) || 'Speakers not listed';
+  // Source data sometimes escapes quotes as "" (e.g. ""it depends"")
+  document.getElementById('details-abstract').textContent =
+    (talk.abstract || 'No abstract provided.').replace(/""/g, '"');
+
+  const loc = talk.location || {};
+  const meta = [
+    ['🕒', `${formatTime(talk.start, talk.end)} · ${talk.day || ''}`],
+    ['📍', loc.room_full || [loc.venue, loc.level, loc.room].filter(Boolean).join(' · ')],
+    loc.address ? ['🗺️', loc.address] : null,
+    ['🎟️', talk.registration?.label + (talk.registration?.sold_out ? ' · SOLD OUT' : '')],
+    ['♿', talk.accessibility?.wheelchair_accessible === true
+      ? 'Verified accessible venue'
+      : 'Accessibility unverified: contact the event host'],
+    talk.audience_level ? ['🎓', talk.audience_level] : null,
+    ['🏷️', [...(talk.topics || []), ...(talk.topics_inferred || [])].slice(0, 3).join(', ') || 'General'],
+  ].filter(Boolean);
+
+  const list = document.getElementById('details-meta');
+  list.innerHTML = '';
+  meta.forEach(([icon, text]) => {
+    const li = document.createElement('li');
+    li.textContent = `${icon} ${text}`;
+    list.appendChild(li);
+  });
+
+  const link = document.getElementById('details-link');
+  if (talk.url) { link.href = talk.url; link.style.display = ''; } else { link.style.display = 'none'; }
+
+  document.getElementById('details-btn-map').style.display =
+    loc.venue === 'Salt Palace' ? '' : 'none';
+  updateDetailsScheduleButton();
+
+  if (!dialog.open) dialog.showModal();
+}
+
+function updateDetailsScheduleButton() {
+  const btn = document.getElementById('details-btn-schedule');
+  if (btn && detailsTalk) {
+    btn.textContent = Schedule.hasTalk(detailsTalk.id) ? '✓ In My Schedule (remove)' : '+ Add to My Schedule';
+  }
 }
 
 function updateCardScheduleButtonState(isSaved) {
@@ -604,18 +727,19 @@ async function performSearch(queryText) {
   }).join('');
 
   dropdownTalksList.querySelectorAll('.dropdown-item').forEach(item => {
-    item.addEventListener('click', () => {
+    const select = () => {
       const id = item.getAttribute('data-id');
       const talk = talks.find(t => String(t.id) === String(id));
       if (talk) {
-        if (talk.location?.venue === 'Salt Palace') {
-          switchView('map');
-          displayActiveTalk(talk);
-        } else {
-          switchView('offsite');
-        }
         searchDropdown.style.display = 'none';
-        announce(`Selected ${talk.title}`);
+        showTalkOnMap(talk); // go to its venue/level, highlight the room, fill the card
+      }
+    };
+    item.addEventListener('click', select);
+    item.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        select();
       }
     });
   });

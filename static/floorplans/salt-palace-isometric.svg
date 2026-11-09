@@ -152,6 +152,12 @@
         clearSelection();
       }
       window.setSaltPalaceLevel = setLevel;
+      // Let the app highlight a room by id (e.g. after picking a search result)
+      window.selectSaltPalaceRoom = function (roomId) {
+        var el = roomEls.filter(function (r) { return r.getAttribute('data-room') === String(roomId); })[0];
+        if (el) selectRoom(el);
+        return Boolean(el);
+      };
       roomEls.forEach(function (el) {
         el.addEventListener('click', function (event) {
           event.stopPropagation();

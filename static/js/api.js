@@ -1,5 +1,18 @@
 import { MOCK_TALKS } from './mockData.js';
 
+/**
+ * Map a room name from the data to the floor plan's data-room id.
+ * "255 BC" → "255", "151" → "151", "Hall DE" / "Solutions Showcase | ..." → "150" (Exhibition Halls).
+ * Returns null for rooms the floor plan doesn't draw (e.g. Grand Ballrooms).
+ */
+export function toSvgRoomId(roomName = '') {
+  const name = String(roomName).trim();
+  const num = name.match(/^(\d{3})/);
+  if (num) return num[1];
+  if (/^(Hall|Halls|Solutions Showcase)\b/i.test(name)) return '150';
+  return null;
+}
+
 export const API = {
   // Set to true for purely standalone/offline mode, or false to call live backend
   useMock: false,
@@ -76,8 +89,8 @@ export const API = {
           v.levels.forEach(l => {
             levels[l.key] = l.count;
             l.rooms.forEach(r => {
-              const id = r.key.split(' ')[0]; // "250 A-C" → "250" (the SVG's data-room id)
-              rooms[id] = (rooms[id] || 0) + r.count;
+              const id = toSvgRoomId(r.key); // "250 A-C" → "250" (the SVG's data-room id)
+              if (id) rooms[id] = (rooms[id] || 0) + r.count;
             });
           });
         }
@@ -186,7 +199,7 @@ export const API = {
         const l = talk.location?.level;
         if (l) levels[l] = (levels[l] || 0) + 1;
 
-        const r = (talk.location?.room || '').split(' ')[0];
+        const r = toSvgRoomId(talk.location?.room);
         if (r) rooms[r] = (rooms[r] || 0) + 1;
       }
     });
