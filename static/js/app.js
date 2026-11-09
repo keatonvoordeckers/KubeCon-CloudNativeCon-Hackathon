@@ -483,7 +483,7 @@ function setupEventListeners() {
   // Calendar Export Event Listeners
   btnExportAppleAll?.addEventListener('click', () => {
     const savedIds = Schedule.getSavedIds();
-    const savedTalks = savedIds.map(id => MOCK_TALKS.find(t => String(t.id) === String(id))).filter(Boolean);
+    const savedTalks = Schedule.getSavedTalks(MOCK_TALKS); // includes talks from live search
     if (savedTalks.length === 0) return;
     downloadIcsFile(savedTalks, 'kubecon-2026-schedule.ics');
     announce(`Downloaded ${savedTalks.length} ${savedTalks.length === 1 ? 'session' : 'sessions'} for Apple Calendar`);
