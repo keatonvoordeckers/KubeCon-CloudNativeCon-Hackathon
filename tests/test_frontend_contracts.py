@@ -1,7 +1,10 @@
 import json
 import re
 from datetime import datetime
-import pytest
+try:
+    import pytest
+except ImportError:
+    pytest = None
 
 def parse_mock_data():
     with open('static/js/mockData.js', 'r') as f:
@@ -95,3 +98,78 @@ def test_conflict_logic_different_days():
         "end": "2026-11-10T12:00:00"
     }
     assert talk_a['day'] != talk_b['day']
+
+def test_k8s_background_contracts():
+    """Verify background canvas, CSS styles, and module integration."""
+    with open('static/index.html', 'r') as f:
+        html = f.read()
+    assert 'id="k8s-topology-canvas"' in html, "index.html missing k8s-topology-canvas"
+
+    with open('static/css/style.css', 'r') as f:
+        css = f.read()
+    assert '.k8s-topology-canvas' in css, "style.css missing .k8s-topology-canvas rule"
+
+    with open('static/js/k8sBackground.js', 'r') as f:
+        k8s_js = f.read()
+    assert 'K8sTopologyBackground' in k8s_js, "k8sBackground.js missing K8sTopologyBackground export"
+    assert 'export function initK8sBackground' in k8s_js, "k8sBackground.js missing initK8sBackground export"
+
+    with open('static/js/app.js', 'r') as f:
+        app_js = f.read()
+    assert 'initK8sBackground' in app_js, "app.js missing initK8sBackground import/call"
+
+
+def test_calendar_export_contracts():
+    """Verify calendar export contracts for Apple/iCal .ics and Google Calendar."""
+    # 1. Module exports
+    with open('static/js/calendarExport.js', 'r') as f:
+        export_js = f.read()
+    assert 'export function generateGoogleCalendarUrl' in export_js
+    assert 'export function generateIcsCalendar' in export_js
+    assert 'export function downloadIcsFile' in export_js
+    assert 'export function openGoogleCalendar' in export_js
+    assert 'export function escapeIcsText' in export_js
+    assert 'export function foldIcsLine' in export_js
+
+    # 2. HTML elements for export
+    with open('static/index.html', 'r') as f:
+        html = f.read()
+    assert 'id="schedule-export-bar"' in html, "index.html missing schedule-export-bar"
+    assert 'id="btn-export-apple-all"' in html, "index.html missing btn-export-apple-all"
+    assert 'id="btn-export-google-all"' in html, "index.html missing btn-export-google-all"
+    assert 'id="gcal-export-modal"' in html, "index.html missing gcal-export-modal"
+    assert 'id="gcal-sessions-list"' in html, "index.html missing gcal-sessions-list"
+    assert 'id="btn-gcal-download-ics"' in html, "index.html missing btn-gcal-download-ics"
+    assert 'id="btn-gcal-open-all"' in html, "index.html missing btn-gcal-open-all"
+
+    # 3. CSS styles in components.css
+    with open('static/css/components.css', 'r') as f:
+        components_css = f.read()
+    assert '.schedule-export-bar' in components_css, "components.css missing .schedule-export-bar"
+    assert '.btn-cal-export' in components_css, "components.css missing .btn-cal-export"
+    assert '.btn-export-apple' in components_css, "components.css missing .btn-export-apple"
+    assert '.btn-export-google' in components_css, "components.css missing .btn-export-google"
+    assert '.schedule-card-actions' in components_css, "components.css missing .schedule-card-actions"
+    assert '.btn-card-cal' in components_css, "components.css missing .btn-card-cal"
+    assert '.gcal-modal-card' in components_css, "components.css missing .gcal-modal-card"
+
+    # 4. App.js integration
+    with open('static/js/app.js', 'r') as f:
+        app_js = f.read()
+    assert 'calendarExport.js' in app_js, "app.js missing calendarExport import"
+    assert 'btnExportAppleAll' in app_js, "app.js missing btnExportAppleAll wiring"
+    assert 'btnExportGoogleAll' in app_js, "app.js missing btnExportGoogleAll wiring"
+    assert 'schedule-card-actions' in app_js, "app.js missing schedule-card-actions in cards"
+    assert 'window.exportTalkToIcs' in app_js, "app.js missing window.exportTalkToIcs"
+    assert 'window.exportTalkToGoogle' in app_js, "app.js missing window.exportTalkToGoogle"
+
+
+if __name__ == '__main__':
+    test_mock_talks_schema()
+    test_conflict_logic_overlap()
+    test_conflict_logic_consecutive_no_conflict()
+    test_conflict_logic_different_days()
+    test_k8s_background_contracts()
+    test_calendar_export_contracts()
+    print("All frontend contracts & calendar export tests passed successfully!")
+
