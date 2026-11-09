@@ -1,0 +1,293 @@
+# =====================================================================
+#  KIBANA DEV TOOLS CHEAT SHEET: kubecon-talks (582 talks)
+#  Open http://localhost:5601 > Menu (☰) > Dev Tools > select all, paste this file.
+#  Put your cursor inside a request and press Ctrl+Enter (or click ▶) to run it.
+#  Ctrl+I = auto-indent.  Lines starting with # are comments.
+#  Days: Mon 2026-11-09, Tue 2026-11-10, Wed 2026-11-11, Thu 2026-11-12
+#  Times are Mountain Time with no timezone (e.g. 2026-11-10T11:30:00). Don't convert them.
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+# 0. BASICS: is it there, what does a talk look like?
+# ---------------------------------------------------------------------
+GET kubecon-talks/_count
+
+GET kubecon-talks/_search
+{
+  "size": 1
+}
+
+GET kubecon-talks/_mapping
+
+
+# ---------------------------------------------------------------------
+# 1. FILTER DROPDOWN VALUES: every possible value + how many talks
+#    (use these to build the <select> options in the UI)
+# ---------------------------------------------------------------------
+GET kubecon-talks/_search
+{
+  "size": 0,
+  "aggs": {
+    "days":         { "terms": { "field": "day", "format": "yyyy-MM-dd" } },
+    "topics":       { "terms": { "field": "topics", "size": 30 } },
+    "inferred":     { "terms": { "field": "topics_inferred", "size": 30 } },
+    "registration": { "terms": { "field": "registration.type" } },
+    "levels":       { "terms": { "field": "audience_level" } },
+    "venues":       { "terms": { "field": "location.venue", "size": 20 } },
+    "formats":      { "terms": { "field": "format", "size": 30 } }
+  }
+}
+
+
+# ---------------------------------------------------------------------
+# 2. SEARCH BOX: fuzzy full-text (typos OK), title matters 3x more
+#    "highlight" returns the matched words wrapped in <em> for the UI
+# ---------------------------------------------------------------------
+GET kubecon-talks/_search
+{
+  "_source": ["title", "start", "location.room_full"],
+  "query": {
+    "multi_match": {
+      "query": "observabilty",
+      "fields": ["title^3", "abstract", "speakers.name"],
+      "fuzziness": "AUTO"
+    }
+  },
+  "highlight": { "fields": { "title": {}, "abstract": { "fragment_size": 120 } } }
+}
+
+
+# ---------------------------------------------------------------------
+# 3. SEARCH + FILTERS: the shape of every /search call
+#    "must"   = affects ranking (the search text)
+#    "filter" = yes/no only, faster, cached (dropdowns + checkboxes)
+#    Topic filter checks the official track OR the inferred one.
+# ---------------------------------------------------------------------
+GET kubecon-talks/_search
+{
+  "_source": ["title", "start", "location.venue", "location.room", "registration.type"],
+  "query": {
+    "bool": {
+      "must": [
+        { "multi_match": { "query": "agents", "fields": ["title^3", "abstract"], "fuzziness": "AUTO" } }
+      ],
+      "filter": [
+        { "term": { "day": "2026-11-10" } },
+        { "bool": { "should": [
+            { "term": { "topics": "AI Inference + Agentic" } },
+            { "term": { "topics_inferred": "AI Inference + Agentic" } }
+          ], "minimum_should_match": 1 } },
+        { "terms": { "registration.type": ["kubecon_pass", "free_open"] } },
+        { "term": { "accessibility.wheelchair_accessible": true } }
+      ]
+    }
+  }
+}
+
+# No search text? Drop "must" and the results are just the filters.
+# Beginner-friendly talks on Wednesday, earliest first:
+GET kubecon-talks/_search
+{
+  "_source": ["title", "start", "location.room_full"],
+  "query": { "bool": { "filter": [
+    { "term": { "day": "2026-11-11" } },
+    { "term": { "audience_level": "Beginner" } }
+  ] } },
+  "sort": [{ "start": "asc" }]
+}
+
+
+# ---------------------------------------------------------------------
+# 4. HOME PAGE: talk counts per venue (respects the current filters)
+# ---------------------------------------------------------------------
+GET kubecon-talks/_search
+{
+  "size": 0,
+  "query": { "term": { "day": "2026-11-10" } },
+  "aggs": { "venues": { "terms": { "field": "location.venue", "size": 20 } } }
+}
+
+
+# ---------------------------------------------------------------------
+# 5. LEVEL HEATMAP: counts per level inside one venue
+# ---------------------------------------------------------------------
+GET kubecon-talks/_search
+{
+  "size": 0,
+  "query": { "bool": { "filter": [
+    { "term": { "day": "2026-11-10" } },
+    { "term": { "location.venue": "Salt Palace" } }
+  ] } },
+  "aggs": { "levels": { "terms": { "field": "location.level" } } }
+}
+
+
+# ---------------------------------------------------------------------
+# 6. ROOM HEATMAP: counts per room on one level
+#    (bucket "key" = room name → match it to your SVG <rect id>)
+# ---------------------------------------------------------------------
+GET kubecon-talks/_search
+{
+  "size": 0,
+  "query": { "bool": { "filter": [
+    { "term": { "day": "2026-11-10" } },
+    { "term": { "location.venue": "Salt Palace" } },
+    { "term": { "location.level": "Level 2" } }
+  ] } },
+  "aggs": { "rooms": { "terms": { "field": "location.room", "size": 50 } } }
+}
+
+# All rooms on each level of a venue (to know which <rect>s to draw):
+GET kubecon-talks/_search
+{
+  "size": 0,
+  "query": { "term": { "location.venue": "Salt Palace" } },
+  "aggs": { "levels": { "terms": { "field": "location.level" },
+    "aggs": { "rooms": { "terms": { "field": "location.room", "size": 50 } } } } }
+}
+
+
+# ---------------------------------------------------------------------
+# 7. ROOM POPUP: what's in this room today, in time order
+# ---------------------------------------------------------------------
+GET kubecon-talks/_search
+{
+  "size": 50,
+  "_source": ["id", "title", "start", "end", "speakers.name", "registration.label", "url"],
+  "query": { "bool": { "filter": [
+    { "term": { "day": "2026-11-10" } },
+    { "term": { "location.venue": "Salt Palace" } },
+    { "term": { "location.room": "255 BC" } }
+  ] } },
+  "sort": [{ "start": "asc" }]
+}
+
+
+# ---------------------------------------------------------------------
+# 8. TIMELINE: talks per hour for a day (the bar chart at the top)
+# ---------------------------------------------------------------------
+GET kubecon-talks/_search
+{
+  "size": 0,
+  "query": { "term": { "day": "2026-11-11" } },
+  "aggs": { "per_hour": { "date_histogram": {
+    "field": "start", "calendar_interval": "hour", "format": "HH:mm", "min_doc_count": 1
+  } } }
+}
+
+# What's happening at a moment? (clicked the 2 PM bar: talks running during 2:00–2:59)
+GET kubecon-talks/_search
+{
+  "_source": ["title", "start", "end", "location.room_full"],
+  "query": { "bool": { "filter": [
+    { "range": { "start": { "lt": "2026-11-11T15:00:00" } } },
+    { "range": { "end":   { "gt": "2026-11-11T14:00:00" } } }
+  ] } },
+  "sort": [{ "start": "asc" }]
+}
+
+
+# ---------------------------------------------------------------------
+# 9. AUTOCOMPLETE: titles as you type (uses title.suggest)
+# ---------------------------------------------------------------------
+GET kubecon-talks/_search
+{
+  "size": 5,
+  "_source": ["title"],
+  "query": { "multi_match": {
+    "query": "kube sec",
+    "type": "bool_prefix",
+    "fields": ["title.suggest", "title.suggest._2gram", "title.suggest._3gram"]
+  } }
+}
+
+
+# ---------------------------------------------------------------------
+# 10. MY SCHEDULE: load saved talks by id (ids come from localStorage)
+#     These two are both Tue 11:30–12:00 in different buildings → a real CONFLICT for the demo.
+# ---------------------------------------------------------------------
+GET kubecon-talks/_search
+{
+  "_source": ["id", "title", "start", "end", "location.room_full"],
+  "query": { "ids": { "values": ["1247249", "1250350"] } },
+  "sort": [{ "start": "asc" }]
+}
+
+# Heads-up: some entries run all day (e.g. "Solutions Showcase" 10:45–17:15,
+# "Explore the Poster Showcase" 10:45–19:30). They'd "conflict" with everything.
+# Decide tomorrow: skip conflicts for formats like "Solutions Showcase" / "Experience",
+# or for anything longer than ~2 hours.
+
+# Conflict check in Elasticsearch: talks that overlap 11:30–12:00 on Tue.
+# Overlap rule: other.start < my.end AND other.end > my.start
+GET kubecon-talks/_search
+{
+  "_source": ["title", "start", "end", "location.room_full"],
+  "query": { "bool": { "filter": [
+    { "range": { "start": { "lt": "2026-11-10T12:00:00" } } },
+    { "range": { "end":   { "gt": "2026-11-10T11:30:00" } } }
+  ] } }
+}
+
+
+# ---------------------------------------------------------------------
+# 11. ACCESSIBILITY (Merge Forward)
+# ---------------------------------------------------------------------
+# Only talks at verified-accessible venues:
+GET kubecon-talks/_search
+{
+  "size": 0,
+  "query": { "term": { "accessibility.wheelchair_accessible": true } }
+}
+
+# Unverified venues (wheelchair_accessible is null → "missing"): show the badge
+GET kubecon-talks/_search
+{
+  "_source": ["title", "location.venue", "location.address", "accessibility.notes"],
+  "query": { "bool": { "must_not": { "exists": { "field": "accessibility.wheelchair_accessible" } } } }
+}
+
+# Talks in the official Inclusion + Accessibility track:
+GET kubecon-talks/_search
+{
+  "_source": ["title", "start", "location.room_full"],
+  "query": { "term": { "topics": "Inclusion + Accessibility" } },
+  "sort": [{ "start": "asc" }]
+}
+
+
+# ---------------------------------------------------------------------
+# 12. THE ONE QUERY: what /search sends. Results + all heatmap counts at once.
+#     Swap in whatever filters the user picked; drop the ones they didn't.
+# ---------------------------------------------------------------------
+GET kubecon-talks/_search
+{
+  "size": 20,
+  "_source": ["id", "title", "start", "end", "speakers.name", "location", "registration", "accessibility.status"],
+  "query": { "bool": {
+    "must":   [ { "multi_match": { "query": "security", "fields": ["title^3", "abstract", "speakers.name"], "fuzziness": "AUTO" } } ],
+    "filter": [ { "term": { "day": "2026-11-11" } } ]
+  } },
+  "aggs": {
+    "venues":   { "terms": { "field": "location.venue", "size": 20 },
+      "aggs": { "levels": { "terms": { "field": "location.level" },
+        "aggs": { "rooms": { "terms": { "field": "location.room", "size": 50 } } } } } },
+    "per_hour": { "date_histogram": { "field": "start", "calendar_interval": "hour", "format": "HH:mm", "min_doc_count": 1 } }
+  },
+  "sort": ["_score", { "start": "asc" }]
+}
+
+
+# ---------------------------------------------------------------------
+# TIPS
+# - Trim noisy output: add ?filter_path=hits.hits._source,aggregations to the URL
+#     GET kubecon-talks/_search?filter_path=aggregations
+# - "term" needs the EXACT value ("Salt Palace", not "salt palace"). Use section 1 to see exact values.
+# - Use "term" on keyword fields (venue, level, room, topics, day...).
+#   Use "match"/"multi_match" on text fields (title, abstract, speakers.name).
+# - Why is my agg empty? Check the query part first. Aggs only count matching docs.
+# - In Python (inside FastAPI), the same JSON goes in as keyword arguments:
+#     es.search(index="kubecon-talks", query={...}, aggs={...}, size=20, sort=[...])
+#   then read  resp["hits"]["hits"]  and  resp["aggregations"]["venues"]["buckets"]
+# ---------------------------------------------------------------------

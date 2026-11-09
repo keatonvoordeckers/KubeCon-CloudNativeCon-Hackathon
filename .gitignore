@@ -5,6 +5,8 @@
 # Dataset files (loaded locally into Elasticsearch, not committed)
 data/*.json
 data/*.ndjson
+partner-setup/talks.bulk.ndjson
+*.ndjson
 
 # ===== Python =====
 __pycache__/

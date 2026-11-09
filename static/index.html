@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KubeCon SLC Navigator 2026</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+  <!-- Full Screen App Layout matching Figma Template -->
+  <div class="figma-app-canvas">
+    
+    <!-- 1. TOP FLOATING BAR -->
+    <header class="top-nav-bar" role="banner">
+      <!-- Left: Brand Pill (clickable, returns to venue selection) -->
+      <button class="brand-pill" id="btn-brand-home" aria-label="Return to venue selection">
+        <div class="brand-logo-circle" aria-hidden="true">
+          <div class="logo-half-top"></div>
+          <div class="logo-half-bottom"></div>
+        </div>
+        <span class="brand-text">KubeCon SLC</span>
+      </button>
+
+      <!-- Center: Semantic Search Bar -->
+      <div class="search-pill-wrapper" role="search">
+        <span class="search-sparkle-icon" aria-hidden="true">✨</span>
+        <input
+          type="search"
+          id="search-input"
+          class="search-input-field"
+          placeholder="Search anything with Elasticsearch semantic search (e.g., 'zero trust security')..."
+          aria-label="Search conference talks"
+          autocomplete="off"
+        >
+        <button id="search-clear" class="clear-search-btn" aria-label="Clear search" style="display: none;">&times;</button>
+        <button id="btn-search-submit" class="search-action-circle" aria-label="Run search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Right: Schedule Quick Action -->
+      <div class="top-right-actions">
+        <button id="btn-quick-schedule" class="pill-btn-schedule" aria-label="View saved schedule">
+          <span>My Schedule</span>
+          <span id="top-schedule-count" class="pill-count-badge">0</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Search Results Dropdown Popover -->
+    <div id="search-results-dropdown" class="search-dropdown-menu" style="display: none;">
+      <div class="dropdown-header">
+        <span id="dropdown-results-title">Semantic Search Matches</span>
+        <span id="dropdown-results-count">0 talks</span>
+      </div>
+      <div id="dropdown-talks-list" class="dropdown-list">
+        <!-- Rendered by app.js -->
+      </div>
+    </div>
+
+    <!-- 2. LEFT VERTICAL FLOATING DOCK -->
+    <nav class="left-floating-dock" aria-label="Primary Navigation">
+      <button id="nav-btn-home" class="dock-btn active" title="Venue Selection (Home)" aria-label="Venue Selection">
+        <div class="dock-icon-circle">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+        </div>
+      </button>
+
+      <button id="nav-btn-map" class="dock-btn" title="Salt Palace 3D Map" aria-label="Salt Palace 3D Map">
+        <div class="dock-icon-circle">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+            <line x1="8" y1="2" x2="8" y2="18"></line>
+            <line x1="16" y1="6" x2="16" y2="22"></line>
+          </svg>
+        </div>
+      </button>
+
+      <button id="nav-btn-offsite" class="dock-btn" title="Other Off-Site Talks" aria-label="Other Off-Site Talks">
+        <div class="dock-icon-circle">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path>
+          </svg>
+        </div>
+      </button>
+
+      <button id="nav-btn-schedule" class="dock-btn" title="My Schedule" aria-label="My Schedule">
+        <div class="dock-icon-circle">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+        </div>
+        <span id="dock-schedule-badge" class="dock-badge" style="display: none;">0</span>
+      </button>
+
+      <div class="dock-divider"></div>
+
+      <button id="nav-btn-info" class="dock-btn" title="Venue Info & Accessibility (Merge Forward)" aria-label="Information & Accessibility">
+        <div class="dock-icon-circle">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+        </div>
+      </button>
+    </nav>
+
+    <!-- ======================================================== -->
+    <!-- VIEW 1: VENUE SELECTION (LANDING PAGE - STARTS HERE)     -->
+    <!-- ======================================================== -->
+    <section id="view-landing" class="view-container active-view" aria-label="Venue Selection">
+      <div class="landing-content-wrapper">
+        <div class="landing-header">
+          <span class="landing-pill-tag">Cloud Native Hackathon 2026</span>
+          <h1 class="landing-main-title">Select Conference Venue</h1>
+          <p class="landing-sub-text">
+            Explore 582 KubeCon sessions across the Salt Palace Convention Center and downtown Salt Lake City.
+          </p>
+        </div>
+
+        <div class="venue-cards-grid">
+          <!-- CARD 1: THE SALT PALACE -->
+          <article class="venue-selection-card" id="card-select-salt-palace" role="button" tabindex="0">
+            <div class="card-image-box">
+              <img src="images/salt-palace.jpg" alt="The Salt Palace Convention Center glass tower" class="venue-card-img" />
+              <div class="card-badge-overlay">
+                <span class="card-venue-tag">🏢 Official Main Venue</span>
+                <span class="card-count-pill">440 Talks</span>
+              </div>
+            </div>
+            <div class="card-text-body">
+              <div class="card-title-row">
+                <h2 class="venue-card-title">The Salt Palace</h2>
+                <div class="circular-nav-arrow" aria-hidden="true">↗</div>
+              </div>
+              <p class="venue-card-desc">
+                Convention center hub with 3 levels of exhibition halls, keynotes, 9 breakout rooms, and quiet sensory sanctuaries (260A/B).
+              </p>
+              <div class="venue-card-features">
+                <span class="feature-chip">🗺️ 3D Floor Plan</span>
+                <span class="feature-chip">🔥 Real-time Heatmap</span>
+                <span class="feature-chip">♿ Verified Accessible</span>
+              </div>
+            </div>
+          </article>
+
+          <!-- CARD 2: OTHER (OFF-SITE VENUES) -->
+          <article class="venue-selection-card" id="card-select-other" role="button" tabindex="0">
+            <div class="card-image-box">
+              <img src="images/offsite-city.jpg" alt="Salt Lake City skyline and Wasatch mountains" class="venue-card-img" />
+              <div class="card-badge-overlay">
+                <span class="card-venue-tag city">🏙️ City Wide</span>
+                <span class="card-count-pill">142 Talks</span>
+              </div>
+            </div>
+            <div class="card-text-body">
+              <div class="card-title-row">
+                <h2 class="venue-card-title">Other (Off-Site Venues)</h2>
+                <div class="circular-nav-arrow" aria-hidden="true">↗</div>
+              </div>
+              <p class="venue-card-desc">
+                Hyatt Regency, Kimpton Monaco, Le Méridien, Clark Planetarium, and downtown satellite workshops & evening events.
+              </p>
+              <div class="venue-card-features">
+                <span class="feature-chip">🏨 Hyatt Regency (128)</span>
+                <span class="feature-chip">📍 6 Downtown Venues</span>
+                <span class="feature-chip unverified">⚠️ Unverified ADA</span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- VIEW 2: 3D MAP VIEW (THE SALT PALACE)                     -->
+    <!-- ======================================================== -->
+    <section id="view-map" class="view-container" style="display: none;" role="region" aria-label="Salt Palace 3D Map">
+      <!-- Top-Left Floating Badge + Back Button -->
+      <div class="map-level-badge">
+        <button id="btn-back-to-venues-from-map" class="btn-back-venues" aria-label="Back to venue selection">
+          ← Venues
+        </button>
+        <span class="live-dot" aria-hidden="true"></span>
+        <div class="badge-text">
+          <strong id="current-level-title">Salt Palace Level 2</strong>
+          <span class="sub-label">LIVE FLOOR PLAN · <span id="current-talk-count">141 TALKS</span></span>
+        </div>
+      </div>
+
+      <!-- Top-Right Level Selector & Density Legend -->
+      <div class="map-top-right-tools">
+        <div class="level-tabs" role="tablist" aria-label="Venue Level">
+          <button class="level-tab-btn" data-level="Level 1" id="tab-level-1" role="tab" aria-selected="false" aria-controls="isometric-wrapper">Level 1</button>
+          <button class="level-tab-btn active" data-level="Level 2" id="tab-level-2" role="tab" aria-selected="true" aria-controls="isometric-wrapper">Level 2</button>
+          <button class="level-tab-btn" data-level="Level 3" id="tab-level-3" role="tab" aria-selected="false" aria-controls="isometric-wrapper">Level 3</button>
+        </div>
+
+        <div class="density-legend">
+          <span class="legend-label">TALK DENSITY:</span>
+          <span class="legend-swatch open"></span> <span class="legend-text">Open</span>
+          <span class="legend-swatch busy"></span> <span class="legend-text">Busy</span>
+          <span class="legend-swatch quiet"></span> <span class="legend-text">Quiet (260A/B)</span>
+        </div>
+      </div>
+
+      <!-- Isometric 3D Salt Palace Architectural Map (Matching Image 1) -->
+      <div class="isometric-canvas-wrapper" id="isometric-wrapper">
+        <object id="salt-palace-svg-object" type="image/svg+xml" data="floorplans/salt-palace-isometric.svg" class="salt-palace-isometric-svg" aria-label="Interactive 3D architectural floor plan of the Salt Palace Convention Center. Use the level buttons to change floors.">
+          <p class="floorplan-fallback">The interactive Salt Palace floor plan could not load. <a href="floorplans/salt-palace-isometric.svg">Open the floor plan directly</a>.</p>
+        </object>
+      </div>
+
+      <!-- Bottom Floating Active Talk Card -->
+      <div class="bottom-floating-talk-card" id="active-talk-card">
+        <div class="card-header-row">
+          <div class="card-title-group">
+            <h2 id="card-talk-title" class="talk-heading">Security Slam & Awards</h2>
+            <div id="card-talk-location" class="talk-location-pin">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+              </svg>
+              <span>Salt Palace · Level 2 · Room 255 BC</span>
+            </div>
+          </div>
+          <button id="card-btn-schedule" class="circular-add-btn" aria-label="Add session to My Schedule" title="Add to schedule">
+            <span class="plus-icon">+</span>
+            <span class="arrow-icon">↗</span>
+          </button>
+        </div>
+
+        <p id="card-talk-description" class="talk-body-desc">
+          Annual community celebration and deep-dive into cloud native security maintainers.
+        </p>
+
+        <div class="card-meta-chips" id="card-meta-chips">
+          <div class="chip-item">
+            <span class="chip-icon">🕒</span>
+            <span id="card-time">11:30 – 12:00 MT</span>
+          </div>
+          <div class="chip-item a11y-verified" id="card-a11y-chip">
+            <span class="chip-icon">♿</span>
+            <span>Verified Accessible</span>
+          </div>
+          <div class="chip-item">
+            <span class="chip-icon">🎓</span>
+            <span id="card-audience">Beginner Friendly</span>
+          </div>
+          <div class="chip-item topic">
+            <span class="chip-icon">🏷️</span>
+            <span id="card-topic">Security Track</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- VIEW 3: OTHER (OFF-SITE TALKS LIST VIEW)                  -->
+    <!-- ======================================================== -->
+    <section id="view-offsite" class="view-container" style="display: none;" role="region" aria-label="Off-Site Talks">
+      <div class="offsite-content-wrapper">
+        <div class="offsite-header-row">
+          <div>
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem;">
+              <button id="btn-back-to-venues-from-offsite" class="btn-back-venues">← Back to Venues</button>
+              <h1 class="offsite-main-title">🏙️ Off-Site & City Locations</h1>
+            </div>
+            <p class="offsite-subtitle">142 sessions hosted outside the Salt Palace in downtown Salt Lake City.</p>
+          </div>
+          <div class="unverified-a11y-alert-badge" title="Official policy for off-site events">
+            <span>⚠️ Accessibility Unverified (Contact Host)</span>
+          </div>
+        </div>
+
+        <!-- Venue filter chips -->
+        <div class="offsite-filter-chips" id="offsite-venue-filter-chips">
+          <button class="chip-btn active" data-subvenue="">All Off-Site (142)</button>
+          <button class="chip-btn" data-subvenue="Hyatt Regency">Hyatt Regency (128)</button>
+          <button class="chip-btn" data-subvenue="Kimpton Monaco">Kimpton Monaco (2)</button>
+          <button class="chip-btn" data-subvenue="Le Méridien">Le Méridien (2)</button>
+          <button class="chip-btn" data-subvenue="Other">Other Downtown (10)</button>
+        </div>
+
+        <!-- Off-site talks cards feed -->
+        <div class="offsite-cards-grid" id="offsite-talks-container">
+          <!-- Populated dynamically by app.js -->
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. SLIDE-OUT SCHEDULE DRAWER -->
+    <div id="drawer-backdrop" class="drawer-backdrop"></div>
+    <aside id="schedule-drawer" class="drawer" aria-label="My Schedule Drawer" role="dialog" aria-modal="true" aria-hidden="true">
+      <div class="drawer-header">
+        <div>
+          <h2 style="font-size: 1.15rem; font-weight: 700;">📅 My Schedule</h2>
+          <span id="schedule-summary-text" style="font-size: 0.8rem; color: #94a3b8;">0 sessions saved</span>
+        </div>
+        <button id="btn-close-schedule" class="btn-icon-close" aria-label="Close schedule drawer">&times;</button>
+      </div>
+
+      <div class="drawer-body" id="schedule-talks-list">
+        <!-- Saved talks populated here with conflict flags -->
+      </div>
+
+      <div class="drawer-footer">
+        <button id="btn-clear-schedule" class="btn-destructive">Clear Schedule</button>
+        <button id="btn-done-schedule" class="btn-solid-primary">Done</button>
+      </div>
+    </aside>
+
+    <!-- 6. ACCESSIBILITY & INFO MODAL (Merge Forward) -->
+    <div id="info-modal" class="modal-backdrop" style="display: none;">
+      <div class="modal-card" role="dialog" aria-modal="true">
+        <div class="modal-header">
+          <h3>Accessibility & Venue Sanctuary (Merge Forward)</h3>
+          <button id="btn-close-info" class="btn-icon-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="info-section">
+            <h4>🌿 Quiet & Sensory Rooms</h4>
+            <p><strong>Salt Palace Rooms 260A & 260B</strong> are designated quiet retreats for attendees who get overwhelmed in crowds or need a low-sensory environment to recharge.</p>
+          </div>
+          <div class="info-section">
+            <h4>♿ Wheelchair & Mobility</h4>
+            <p>All official Salt Palace breakout rooms and ballrooms have elevator access and designated front-row reserved accessible seating.</p>
+          </div>
+          <div class="info-section">
+            <h4>⚠️ Off-Site Venues Notice</h4>
+            <p>Off-site locations are marked with the <em>"Accessibility Unverified"</em> badge because ADA access is not directly managed by KubeCon staff. Contact the session host directly.</p>
+          </div>
+          <div class="info-section">
+            <h4>◐ Display Controls</h4>
+            <div style="display: flex; gap: 0.75rem; margin-top: 0.5rem;">
+              <button id="btn-toggle-contrast" class="btn-pill-small">Toggle High Contrast</button>
+              <button id="btn-toggle-font" class="btn-pill-small">Cycle Font Size</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screen reader announcement live region -->
+    <div id="a11y-announcements" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
