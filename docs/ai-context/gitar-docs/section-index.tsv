@@ -1,0 +1,74 @@
+1	91	Managing Your Subscription	https://docs.gitar.ai/account-billing/managing-subscription
+92	199	Plans	https://docs.gitar.ai/account-billing/plans
+200	249	Audit Logs	https://docs.gitar.ai/administration/audit-logs
+250	445	Bring Your Own Model	https://docs.gitar.ai/administration/bring-your-own-model
+446	545	Members & Seats	https://docs.gitar.ai/administration/members
+546	769	Security	https://docs.gitar.ai/administration/security
+770	939	SSO	https://docs.gitar.ai/administration/sso
+940	1012	Get Gitar's blocking status for a GitLab MR	https://docs.gitar.ai/api-reference/gitlab/get-mr-status
+1013	1071	Onboard a GitLab project	https://docs.gitar.ai/api-reference/gitlab/onboard-project
+1072	1086	Get installation health	https://docs.gitar.ai/api-reference/installation/get-installation-health
+1087	1113	Create a partner organization	https://docs.gitar.ai/api-reference/organizations/create-organization
+1114	1230	Overview	https://docs.gitar.ai/api-reference/overview
+1231	1340	Commands & Interactions	https://docs.gitar.ai/commands
+1341	1484	Configuration Repository	https://docs.gitar.ai/configuration/configuration-repository
+1485	1578	Repository Customization	https://docs.gitar.ai/configuration/repository-config
+1579	1604	Logging Gotchas	https://docs.gitar.ai/configuration/repository-config
+1605	1610	Gotchas for Rust Code	https://docs.gitar.ai/configuration/repository-config
+1611	1630	Other project-specific gotchas	https://docs.gitar.ai/configuration/repository-config
+1631	1777	Organization Settings	https://docs.gitar.ai/configuration/settings
+1778	1860	Signed Commits	https://docs.gitar.ai/configuration/signed-commits
+1861	1937	Bitrise	https://docs.gitar.ai/connecting-ci/bitrise
+1938	2031	Buildkite	https://docs.gitar.ai/connecting-ci/buildkite
+2032	2105	CircleCI	https://docs.gitar.ai/connecting-ci/circleci
+2106	2188	Concourse	https://docs.gitar.ai/connecting-ci/concourse
+2189	2322	Harness	https://docs.gitar.ai/connecting-ci/harness
+2323	2447	Jenkins	https://docs.gitar.ai/connecting-ci/jenkins
+2448	2550	TeamCity	https://docs.gitar.ai/connecting-ci/teamcity
+2551	2629	Woodpecker	https://docs.gitar.ai/connecting-ci/woodpecker
+2630	2718	AWS CodeCommit	https://docs.gitar.ai/connecting-code/aws-codecommit
+2719	2879	Azure DevOps	https://docs.gitar.ai/connecting-code/azure-devops
+2880	3054	Azure DevOps Server	https://docs.gitar.ai/connecting-code/azure-devops-server
+3055	3167	Bitbucket	https://docs.gitar.ai/connecting-code/bitbucket
+3168	3321	Bitbucket Data Center	https://docs.gitar.ai/connecting-code/bitbucket-data-center
+3322	3421	GitHub	https://docs.gitar.ai/connecting-code/github
+3422	3618	GitLab	https://docs.gitar.ai/connecting-code/gitlab
+3619	3662	Network Access	https://docs.gitar.ai/connecting-code/network-access
+3663	3755	Platform Support	https://docs.gitar.ai/connecting-code/platform-support
+3756	3818	Agentic Security	https://docs.gitar.ai/features/agentic-security
+3819	3929	CI Failure Analysis	https://docs.gitar.ai/features/ci-failure-analysis
+3930	4094	Code Review	https://docs.gitar.ai/features/code-review
+4095	4148	Auto-Apply	https://docs.gitar.ai/features/code-review/auto-apply
+4149	4317	Auto-Approve	https://docs.gitar.ai/features/code-review/auto-approve
+4318	4450	Auto-Merge	https://docs.gitar.ai/features/code-review/auto-merge
+4451	4526	Block Merge	https://docs.gitar.ai/features/code-review/block-merge
+4527	4627	Risk Triage	https://docs.gitar.ai/features/code-review/risk-triage
+4628	4712	Cross-PR Analysis	https://docs.gitar.ai/features/cross-pr-analysis
+4713	4839	Cross-Repo Analysis	https://docs.gitar.ai/features/cross-repo-analysis
+4840	4958	Functional Validation	https://docs.gitar.ai/features/functional-validation
+4959	5022	Insights	https://docs.gitar.ai/features/insights
+5023	5184	Knowledge	https://docs.gitar.ai/features/knowledge
+5185	5225	Repository Rules	https://docs.gitar.ai/features/rules
+5226	5258	Security Review	https://docs.gitar.ai/features/rules
+5259	5387	Detailed Instructions	https://docs.gitar.ai/features/rules
+5388	5405	Documentation Requirements	https://docs.gitar.ai/features/rules
+5406	5436	Breaking Change Detection	https://docs.gitar.ai/features/rules
+5437	5490	The Gitar Dashboard	https://docs.gitar.ai/gitar-dashboard
+5491	5575	How Gitar Works	https://docs.gitar.ai/how-gitar-works
+5576	5666	Custom Integrations (MCP)	https://docs.gitar.ai/integrations/custom-integrations
+5667	5727	Internal Docs Enrichment	https://docs.gitar.ai/integrations/custom-integrations
+5728	5849	Jira	https://docs.gitar.ai/integrations/jira
+5850	5933	Linear	https://docs.gitar.ai/integrations/linear
+5934	6059	Plane	https://docs.gitar.ai/integrations/plane
+6060	6153	Skills	https://docs.gitar.ai/integrations/skills
+6154	6188	Migration Check	https://docs.gitar.ai/integrations/skills
+6189	6234	Migration Safety	https://docs.gitar.ai/integrations/skills
+6235	6291	Slack	https://docs.gitar.ai/integrations/slack
+6292	6420	YouTrack	https://docs.gitar.ai/integrations/youtrack
+6421	6425	AI Code Review That Fixes Your Code	https://docs.gitar.ai/introduction
+6426	6521	AI Code Review That Fixes Your Code	https://docs.gitar.ai/introduction
+6522	6580	Labels	https://docs.gitar.ai/labels
+6581	6706	Quickstart	https://docs.gitar.ai/quickstart
+6707	8123	Release Notes	https://docs.gitar.ai/release-notes
+8124	8203	Package Upgrade Documentation	https://docs.gitar.ai/release-notes
+8204	8366	FAQ	https://docs.gitar.ai/resources/faq
