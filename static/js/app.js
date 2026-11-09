@@ -1,4 +1,4 @@
-import { API } from './api.js';
+import { API, toSvgRoomId, svgRoomPrefixes } from './api.js';
 import { State } from './state.js';
 import { Schedule } from './schedule.js';
 import { MOCK_TALKS } from './mockData.js';
@@ -91,9 +91,52 @@ const a11yAnnouncements = document.getElementById('a11y-announcements');
 let currentActiveTalk = null;
 let searchDebounceTimeout = null;
 let currentView = 'landing'; // 'landing' | 'map' | 'offsite'
+let lastResult = null;        // most recent /search response (talks + counts)
 
 function announce(msg) {
   if (a11yAnnouncements) a11yAnnouncements.textContent = msg;
+}
+
+// Current filter choices (controls are optional; missing ones mean "any")
+function currentFilters() {
+  return {
+    day: document.getElementById('filter-day')?.value || '',
+    wheelchair: document.getElementById('filter-wheelchair')?.checked ? 'true' : '',
+  };
+}
+
+// Color each Salt Palace room by how many matching talks it has (the heatmap)
+function paintHeatmap(roomCounts = {}) {
+  const svgDoc = floorplanObject?.contentDocument;
+  if (!svgDoc) return;
+  const maxCount = Math.max(0, ...Object.values(roomCounts));
+  svgDoc.querySelectorAll('.map-room[data-room]').forEach(room => {
+    const id = room.getAttribute('data-room');
+    if (id.startsWith('260')) return; // quiet rooms keep their own style
+    const n = roomCounts[id] || 0;
+    // Color relative to the busiest room, so the map still shows contrast when every room is busy
+    const share = maxCount > 0 ? n / maxCount : 0;
+    const fill = n === 0 ? '#334155' : share >= 0.66 ? '#c2410c' : share >= 0.33 ? '#f97316' : '#fdba74';
+    // Some rooms have several shapes (Hall DE is drawn as Hall E + Hall D)
+    room.querySelectorAll('.room-top').forEach(top => { top.style.fill = fill; });
+    // Show the number too, not color alone
+    const zone = room.getAttribute('data-zone');
+    room.setAttribute('aria-label',
+      `Room ${id}${zone ? ', ' + zone : ''}, Level ${room.getAttribute('data-level')}, ${n} ${n === 1 ? 'talk' : 'talks'}`);
+  });
+}
+
+function updateLevelCount() {
+  const lvl = document.querySelector('.level-tab-btn.active')?.getAttribute('data-level') || 'Level 2';
+  const n = lastResult?.aggregations?.levels?.[lvl] ?? 0;
+  currentTalkCount.textContent = `${n} ${n === 1 ? 'TALK' : 'TALKS'}`;
+}
+
+// Re-run the search for the map and repaint the heatmap + level count
+async function refreshMap() {
+  lastResult = await API.search({ q: searchInput.value.trim(), ...currentFilters() });
+  paintHeatmap(lastResult.aggregations.rooms);
+  updateLevelCount();
 }
 
 function formatTime(startStr, endStr) {
@@ -131,6 +174,7 @@ function switchView(viewName) {
     const activeTab = document.querySelector('.level-tab-btn.active');
     setFloorplanLevel(activeTab?.getAttribute('data-level') || 'Level 2');
     attachSvgRoomClickListeners();
+    refreshMap();
     announce('Navigated to Salt Palace 3D Map View');
   } else if (viewName === 'offsite') {
     viewOffsite.style.display = 'flex';
@@ -201,7 +245,14 @@ function attachSvgRoomClickListeners() {
   });
 }
 
-function handleSvgRoomClick(roomId, level, zone) {
+// "HALL-BC" → "Hall BC", "BALLROOM" → "Grand Ballroom", "255" → "Room 255"
+function roomDisplayName(roomId) {
+  if (roomId.startsWith('HALL-')) return `Hall ${roomId.slice(5)}`;
+  if (roomId === 'BALLROOM') return 'Grand Ballroom';
+  return `Room ${roomId}`;
+}
+
+async function handleSvgRoomClick(roomId, level, zone) {
   if (!roomId) return;
 
   // 1. Special Sensory Sanctuary Retreat (260A/B)
@@ -211,16 +262,19 @@ function handleSvgRoomClick(roomId, level, zone) {
     return;
   }
 
-  // 2. Find matching talks in this room
-  const matchingTalk = MOCK_TALKS.find(t => {
-    const talkRoom = (t.location?.room || '').toLowerCase();
-    const targetRoom = roomId.toLowerCase();
-    return talkRoom.includes(targetRoom) || targetRoom.includes(talkRoom);
+  // 2. Ask the backend for talks in this room (respects the day/wheelchair filters).
+  // No search text here: semantic search always returns its 10 nearest talks *within* the
+  // filter, so "room + question" would claim 10 matches even in rooms that barely match.
+  const res = await API.search({
+    venue: 'Salt Palace',
+    room: svgRoomPrefixes(roomId), // e.g. Hall 1 → ["Solutions Showcase | Hall 1", "Halls A-C"]
+    ...currentFilters(),
   });
+  const matchingTalk = res.talks[0];
 
   if (matchingTalk) {
     displayActiveTalk(matchingTalk);
-    announce(`Selected Room ${roomId}: ${matchingTalk.title}`);
+    announce(`${roomDisplayName(roomId)}: ${res.total} ${res.total === 1 ? 'talk' : 'talks'}. Showing ${matchingTalk.title}`);
   } else {
     displayRoomPlaceholder(roomId, level, zone);
     announce(`Selected Room ${roomId}, Level ${level}`);
@@ -270,6 +324,7 @@ function setupFloorplanSync() {
   };
 
   floorplanObject.addEventListener('load', syncActiveLevel);
+  floorplanObject.addEventListener('load', refreshMap); // paint heatmap once the SVG exists
   window.addEventListener('load', syncActiveLevel, { once: true });
 
   if (floorplanObject.contentDocument?.querySelector('.level-group')) {
@@ -282,10 +337,11 @@ function setupEventListeners() {
   cardSelectSaltPalace.addEventListener('click', () => switchView('map'));
   cardSelectOther.addEventListener('click', () => switchView('offsite'));
 
-  btnBrandHome.addEventListener('click', () => switchView('landing'));
-  navBtnHome.addEventListener('click', () => switchView('landing'));
-  navBtnMap.addEventListener('click', () => switchView('map'));
-  navBtnOffsite.addEventListener('click', () => switchView('offsite'));
+  // Brand badge and left sidebar were removed from the UI; keep these null-safe
+  btnBrandHome?.addEventListener('click', () => switchView('landing'));
+  navBtnHome?.addEventListener('click', () => switchView('landing'));
+  navBtnMap?.addEventListener('click', () => switchView('map'));
+  navBtnOffsite?.addEventListener('click', () => switchView('offsite'));
 
   btnBackToVenuesFromMap.addEventListener('click', () => switchView('landing'));
   btnBackToVenuesFromOffsite.addEventListener('click', () => switchView('landing'));
@@ -306,10 +362,53 @@ function setupEventListeners() {
     }, 200);
   });
 
+  // Talk card → full details dialog
+  document.getElementById('card-btn-details')?.addEventListener('click', () => {
+    if (currentActiveTalk) openTalkDetails(currentActiveTalk);
+  });
+  cardTalkTitle.style.cursor = 'pointer';
+  cardTalkTitle.addEventListener('click', () => {
+    if (currentActiveTalk) openTalkDetails(currentActiveTalk);
+  });
+
+  // Details dialog buttons (Escape also closes it: built into <dialog>)
+  const detailsDialog = document.getElementById('talk-details-dialog');
+  document.getElementById('details-close')?.addEventListener('click', () => detailsDialog.close());
+  detailsDialog?.addEventListener('click', e => { if (e.target === detailsDialog) detailsDialog.close(); }); // click backdrop
+  document.getElementById('details-btn-schedule')?.addEventListener('click', () => {
+    if (!detailsTalk) return;
+    const added = Schedule.toggleTalk(detailsTalk);
+    updateDetailsScheduleButton();
+    updateScheduleBadges();
+    if (currentActiveTalk && String(currentActiveTalk.id) === String(detailsTalk.id)) {
+      updateCardScheduleButtonState(added);
+    }
+    announce(added ? `Saved ${detailsTalk.title} to My Schedule` : `Removed ${detailsTalk.title} from schedule`);
+  });
+  document.getElementById('details-btn-map')?.addEventListener('click', () => {
+    if (!detailsTalk) return;
+    detailsDialog.close();
+    showTalkOnMap(detailsTalk);
+  });
+
+  // Filters: re-run the current search and repaint the heatmap
+  ['filter-day', 'filter-wheelchair'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', async () => {
+      const val = searchInput.value.trim();
+      if (val) {
+        await performSearch(val);
+      } else {
+        await refreshMap();
+      }
+      announce(`Filters updated: ${lastResult?.total ?? 0} talks match`);
+    });
+  });
+
   searchClearBtn.addEventListener('click', () => {
     searchInput.value = '';
     searchClearBtn.style.display = 'none';
     searchDropdown.style.display = 'none';
+    refreshMap(); // back to the full heatmap (filters still apply)
     searchInput.focus();
   });
 
@@ -341,8 +440,7 @@ function setupEventListeners() {
       const lvl = tab.getAttribute('data-level');
       currentLevelTitle.textContent = `Salt Palace ${lvl}`;
       
-      const counts = { 'Level 1': '299 TALKS', 'Level 2': '141 TALKS', 'Level 3': '24 TALKS' };
-      currentTalkCount.textContent = counts[lvl] || '141 TALKS';
+      updateLevelCount(); // real count from the last search
       setFloorplanLevel(lvl);
       attachSvgRoomClickListeners();
       announce(`Switched view to ${lvl}. Showing the Salt Palace ${lvl} floor plan.`);
@@ -363,7 +461,7 @@ function setupEventListeners() {
 
   // 6. Schedule Drawer Open/Close
   btnQuickSchedule.addEventListener('click', openScheduleDrawer);
-  navBtnSchedule.addEventListener('click', openScheduleDrawer);
+  navBtnSchedule?.addEventListener('click', openScheduleDrawer);
   btnCloseSchedule.addEventListener('click', closeScheduleDrawer);
   btnDoneSchedule.addEventListener('click', closeScheduleDrawer);
   drawerBackdrop.addEventListener('click', () => {
@@ -393,7 +491,7 @@ function setupEventListeners() {
 
   btnExportGoogleAll?.addEventListener('click', () => {
     const savedIds = Schedule.getSavedIds();
-    const savedTalks = savedIds.map(id => MOCK_TALKS.find(t => String(t.id) === String(id))).filter(Boolean);
+    const savedTalks = Schedule.getSavedTalks(MOCK_TALKS);
     if (savedTalks.length === 0) return;
     if (savedTalks.length === 1) {
       openGoogleCalendar(savedTalks[0]);
@@ -406,7 +504,7 @@ function setupEventListeners() {
   btnCloseGcalModal?.addEventListener('click', closeGcalModal);
   btnGcalDownloadIcs?.addEventListener('click', () => {
     const savedIds = Schedule.getSavedIds();
-    const savedTalks = savedIds.map(id => MOCK_TALKS.find(t => String(t.id) === String(id))).filter(Boolean);
+    const savedTalks = Schedule.getSavedTalks(MOCK_TALKS);
     if (savedTalks.length > 0) {
       downloadIcsFile(savedTalks, 'kubecon-schedule-google-import.ics');
       announce('Downloaded calendar file for Google Calendar import');
@@ -414,13 +512,13 @@ function setupEventListeners() {
   });
   btnGcalOpenAll?.addEventListener('click', () => {
     const savedIds = Schedule.getSavedIds();
-    const savedTalks = savedIds.map(id => MOCK_TALKS.find(t => String(t.id) === String(id))).filter(Boolean);
+    const savedTalks = Schedule.getSavedTalks(MOCK_TALKS);
     savedTalks.forEach(talk => openGoogleCalendar(talk));
     announce(`Opened ${savedTalks.length} Google Calendar tabs`);
   });
 
   // 7. Info Modal
-  navBtnInfo.addEventListener('click', () => {
+  navBtnInfo?.addEventListener('click', () => {
     infoModal.style.display = 'flex';
   });
 
@@ -458,7 +556,7 @@ function displayActiveTalk(talk) {
   currentActiveTalk = talk;
   cardTalkTitle.textContent = talk.title;
   cardTalkLocation.querySelector('span').textContent = talk.location?.room_full || `${talk.location?.venue || 'Salt Palace'} · ${talk.location?.room || 'Room'}`;
-  cardTalkDescription.textContent = talk.abstract || 'Join this session to connect with project maintainers and explore cutting-edge cloud native practices.';
+  cardTalkDescription.textContent = (talk.abstract || '').replace(/""/g, '"') || 'Join this session to connect with project maintainers and explore cutting-edge cloud native practices.';
   cardTime.textContent = formatTime(talk.start, talk.end);
 
   const isVerified = talk.accessibility?.wheelchair_accessible === true;
@@ -468,8 +566,102 @@ function displayActiveTalk(talk) {
   cardAudience.textContent = talk.audience_level || 'All Levels';
   cardTopic.textContent = (talk.topics && talk.topics[0]) || (talk.topics_inferred && talk.topics_inferred[0]) || 'General Track';
 
+  const speakersEl = document.getElementById('card-talk-speakers');
+  if (speakersEl) speakersEl.textContent = speakerLine(talk);
+
   const isSaved = Schedule.hasTalk(talk.id);
   updateCardScheduleButtonState(isSaved);
+}
+
+// "Ada Lovelace (Acme), Grace Hopper" or ''
+function speakerLine(talk) {
+  const names = (talk.speakers || [])
+    .map(s => (typeof s === 'string' ? s : s.company ? `${s.name} (${s.company})` : s.name))
+    .filter(Boolean);
+  return names.length ? `By ${names.join(', ')}` : '';
+}
+
+// Wait until the floor plan SVG has loaded its script (needed the first time the map opens)
+function whenFloorplanReady(fn, tries = 20) {
+  if (floorplanObject?.contentWindow?.selectSaltPalaceRoom) return fn();
+  if (tries > 0) setTimeout(() => whenFloorplanReady(fn, tries - 1), 150);
+}
+
+// Jump to where a talk happens: right venue view, right level, room highlighted, card filled in
+function showTalkOnMap(talk) {
+  if (talk.location?.venue !== 'Salt Palace') {
+    // Hyatt / off-site: no floor plan, so go to the list view and open the full details
+    switchView('offsite');
+    openTalkDetails(talk);
+    return;
+  }
+
+  switchView('map');
+
+  const level = talk.location?.level;
+  const tab = level && document.querySelector(`.level-tab-btn[data-level="${level}"]`);
+  if (tab && !tab.classList.contains('active')) tab.click(); // switches floor + updates count
+
+  displayActiveTalk(talk);
+
+  const roomId = toSvgRoomId(talk.location?.room);
+  whenFloorplanReady(() => {
+    if (roomId) floorplanObject.contentWindow.selectSaltPalaceRoom(roomId);
+  });
+
+  announce(`${talk.title}. ${talk.location?.room_full || ''}. ${formatTime(talk.start, talk.end)}`);
+}
+
+// Full talk details: title, speakers, time, place, registration, accessibility, abstract
+let detailsTalk = null;
+
+function openTalkDetails(talk) {
+  const dialog = document.getElementById('talk-details-dialog');
+  if (!dialog || !talk) return;
+  detailsTalk = talk;
+
+  document.getElementById('details-title').textContent = talk.title;
+  document.getElementById('details-speakers').textContent = speakerLine(talk) || 'Speakers not listed';
+  // Source data sometimes escapes quotes as "" (e.g. ""it depends"")
+  document.getElementById('details-abstract').textContent =
+    (talk.abstract || 'No abstract provided.').replace(/""/g, '"');
+
+  const loc = talk.location || {};
+  const meta = [
+    ['🕒', `${formatTime(talk.start, talk.end)} · ${talk.day || ''}`],
+    ['📍', loc.room_full || [loc.venue, loc.level, loc.room].filter(Boolean).join(' · ')],
+    loc.address ? ['🗺️', loc.address] : null,
+    ['🎟️', talk.registration?.label + (talk.registration?.sold_out ? ' · SOLD OUT' : '')],
+    ['♿', talk.accessibility?.wheelchair_accessible === true
+      ? 'Verified accessible venue'
+      : 'Accessibility unverified: contact the event host'],
+    talk.audience_level ? ['🎓', talk.audience_level] : null,
+    ['🏷️', [...(talk.topics || []), ...(talk.topics_inferred || [])].slice(0, 3).join(', ') || 'General'],
+  ].filter(Boolean);
+
+  const list = document.getElementById('details-meta');
+  list.innerHTML = '';
+  meta.forEach(([icon, text]) => {
+    const li = document.createElement('li');
+    li.textContent = `${icon} ${text}`;
+    list.appendChild(li);
+  });
+
+  const link = document.getElementById('details-link');
+  if (talk.url) { link.href = talk.url; link.style.display = ''; } else { link.style.display = 'none'; }
+
+  document.getElementById('details-btn-map').style.display =
+    loc.venue === 'Salt Palace' ? '' : 'none';
+  updateDetailsScheduleButton();
+
+  if (!dialog.open) dialog.showModal();
+}
+
+function updateDetailsScheduleButton() {
+  const btn = document.getElementById('details-btn-schedule');
+  if (btn && detailsTalk) {
+    btn.textContent = Schedule.hasTalk(detailsTalk.id) ? '✓ In My Schedule (remove)' : '+ Add to My Schedule';
+  }
 }
 
 function updateCardScheduleButtonState(isSaved) {
@@ -565,8 +757,13 @@ window.toggleOffsiteSchedule = function(talkId) {
 
 // Perform Semantic Search and Update Dropdown
 async function performSearch(queryText) {
-  const res = await API.search({ q: queryText });
+  const res = await API.search({ q: queryText, ...currentFilters() });
   const talks = res.talks || [];
+
+  // Same response drives the heatmap and level count
+  lastResult = res;
+  paintHeatmap(res.aggregations.rooms);
+  updateLevelCount();
 
   dropdownResultsCount.textContent = `${talks.length} ${talks.length === 1 ? 'talk' : 'talks'}`;
 
@@ -601,18 +798,19 @@ async function performSearch(queryText) {
   }).join('');
 
   dropdownTalksList.querySelectorAll('.dropdown-item').forEach(item => {
-    item.addEventListener('click', () => {
+    const select = () => {
       const id = item.getAttribute('data-id');
       const talk = talks.find(t => String(t.id) === String(id));
       if (talk) {
-        if (talk.location?.venue === 'Salt Palace') {
-          switchView('map');
-          displayActiveTalk(talk);
-        } else {
-          switchView('offsite');
-        }
         searchDropdown.style.display = 'none';
-        announce(`Selected ${talk.title}`);
+        showTalkOnMap(talk); // go to its venue/level, highlight the room, fill the card
+      }
+    };
+    item.addEventListener('click', select);
+    item.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        select();
       }
     });
   });
@@ -635,6 +833,7 @@ function closeScheduleDrawer() {
 function updateScheduleBadges() {
   const ids = Schedule.getSavedIds();
   topScheduleCount.textContent = ids.length;
+  if (!dockScheduleBadge) return; // sidebar badge removed from the UI
   if (ids.length > 0) {
     dockScheduleBadge.textContent = ids.length;
     dockScheduleBadge.style.display = 'block';
@@ -658,8 +857,9 @@ function renderScheduleDrawer() {
     return;
   }
 
-  if (scheduleExportBar) scheduleExportBar.style.display = 'flex';
-  const savedTalks = savedIds.map(id => MOCK_TALKS.find(t => String(t.id) === String(id))).filter(Boolean);
+  if (scheduleExportBar) 
+    scheduleExportBar.style.display = 'flex';
+  const savedTalks = Schedule.getSavedTalks(MOCK_TALKS);
   const conflicts = Schedule.findConflicts(savedTalks);
   const conflictCount = Object.keys(conflicts).length;
 
