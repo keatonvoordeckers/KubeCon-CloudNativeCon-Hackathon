@@ -7,7 +7,7 @@ except ImportError:
     pytest = None
 
 def parse_mock_data():
-    with open('static/js/mockData.js', 'r') as f:
+    with open('static/js/mockData.js', 'r', encoding='utf-8') as f:
         content = f.read()
     # Extract JSON array
     match = re.search(r'export const MOCK_TALKS\s*=\s*(\[.*?\]);', content, re.DOTALL)
@@ -101,20 +101,20 @@ def test_conflict_logic_different_days():
 
 def test_k8s_background_contracts():
     """Verify background canvas, CSS styles, and module integration."""
-    with open('static/index.html', 'r') as f:
+    with open('static/index.html', 'r', encoding='utf-8') as f:
         html = f.read()
     assert 'id="k8s-topology-canvas"' in html, "index.html missing k8s-topology-canvas"
 
-    with open('static/css/style.css', 'r') as f:
+    with open('static/css/style.css', 'r', encoding='utf-8') as f:
         css = f.read()
     assert '.k8s-topology-canvas' in css, "style.css missing .k8s-topology-canvas rule"
 
-    with open('static/js/k8sBackground.js', 'r') as f:
+    with open('static/js/k8sBackground.js', 'r', encoding='utf-8') as f:
         k8s_js = f.read()
     assert 'K8sTopologyBackground' in k8s_js, "k8sBackground.js missing K8sTopologyBackground export"
     assert 'export function initK8sBackground' in k8s_js, "k8sBackground.js missing initK8sBackground export"
 
-    with open('static/js/app.js', 'r') as f:
+    with open('static/js/app.js', 'r', encoding='utf-8') as f:
         app_js = f.read()
     assert 'initK8sBackground' in app_js, "app.js missing initK8sBackground import/call"
 
@@ -122,7 +122,7 @@ def test_k8s_background_contracts():
 def test_calendar_export_contracts():
     """Verify calendar export contracts for Apple/iCal .ics and Google Calendar."""
     # 1. Module exports
-    with open('static/js/calendarExport.js', 'r') as f:
+    with open('static/js/calendarExport.js', 'r', encoding='utf-8') as f:
         export_js = f.read()
     assert 'export function generateGoogleCalendarUrl' in export_js
     assert 'export function generateIcsCalendar' in export_js
@@ -132,7 +132,7 @@ def test_calendar_export_contracts():
     assert 'export function foldIcsLine' in export_js
 
     # 2. HTML elements for export
-    with open('static/index.html', 'r') as f:
+    with open('static/index.html', 'r', encoding='utf-8') as f:
         html = f.read()
     assert 'id="schedule-export-bar"' in html, "index.html missing schedule-export-bar"
     assert 'id="btn-export-apple-all"' in html, "index.html missing btn-export-apple-all"
@@ -143,7 +143,7 @@ def test_calendar_export_contracts():
     assert 'id="btn-gcal-open-all"' in html, "index.html missing btn-gcal-open-all"
 
     # 3. CSS styles in components.css
-    with open('static/css/components.css', 'r') as f:
+    with open('static/css/components.css', 'r', encoding='utf-8') as f:
         components_css = f.read()
     assert '.schedule-export-bar' in components_css, "components.css missing .schedule-export-bar"
     assert '.btn-cal-export' in components_css, "components.css missing .btn-cal-export"
@@ -154,7 +154,7 @@ def test_calendar_export_contracts():
     assert '.gcal-modal-card' in components_css, "components.css missing .gcal-modal-card"
 
     # 4. App.js integration
-    with open('static/js/app.js', 'r') as f:
+    with open('static/js/app.js', 'r', encoding='utf-8') as f:
         app_js = f.read()
     assert 'calendarExport.js' in app_js, "app.js missing calendarExport import"
     assert 'btnExportAppleAll' in app_js, "app.js missing btnExportAppleAll wiring"
