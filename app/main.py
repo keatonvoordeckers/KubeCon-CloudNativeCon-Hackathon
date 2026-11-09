@@ -4,6 +4,8 @@ from elasticsearch import Elasticsearch
 from fastapi import FastAPI
 from openai import OpenAI
 
+from app.search import AGGS, build_filters, build_query, parse_aggs
+
 # Settings come from .env
 ES_URL = os.environ["ES_URL"]
 ES_INDEX = os.environ["ES_INDEX"]
@@ -16,33 +18,24 @@ app = FastAPI(title="KubeCon Talk Explorer")
 
 @app.get("/health")
 def health():
-    """ Runs on a GET request """ 
+    """ 
+    Runs on a GET request 
+    """ 
     return {
         "elasticsearch": es.ping(),
         "talks": es.count(index=ES_INDEX)["count"],
     }
 
 @app.get("/search")
-def search(q: str = ""):
-    """ 
-    Hybrid search: keyword + semantic scores combined on every query.
-    Empty search returns everything. Falls back to keyword-only if OpenAI is unavailable.
+def search(q: str = "", day: str | None = None, topic: str | None = None,
+           registration: str | None = None, wheelchair: bool = False,
+           audience: str | None = None):
     """
+    Hybrid search + filters. Returns matching talks and venue/level/room counts for the heatmap.
+    """
+    filters = build_filters(day, topic, registration, wheelchair, audience)
+    query = build_query(q, filters)
 
-    # Keyword 
-    if q.strip():
-        query = {
-            "multi_match": {
-                "query": q,
-                "fields": ["title^3", "abstract", "speakers.name"],
-                "fuzziness": "AUTO",
-                "minimum_should_match": "50%",
-            }
-        }
-    else:
-        query = {"match_all": {}}
-
-    # Semantic (only when there's text to embed)
     knn = None
     if q.strip():
         try:
@@ -50,25 +43,27 @@ def search(q: str = ""):
             knn = {
                 "field": "embedding",
                 "query_vector": vector,
-                "k": 10,                 # only the 10 closest talks join from the semantic side
+                "k": 10,
                 "num_candidates": 100,
                 "boost": 10,
+                "filter": filters,   # semantic results must respect the dropdowns too
             }
         except Exception:
             knn = None  # OpenAI unavailable → keyword only
 
-    # One search with both parts
     resp = es.search(
         index=ES_INDEX,
         query=query,
         knn=knn,
+        aggs=AGGS,
+        sort=None if q.strip() else [{"start": "asc"}],  # no text → time order
         size=50,
         source_excludes=["embedding"],
     )
 
-    talks = [hit["_source"] for hit in resp["hits"]["hits"]]
     return {
         "total": resp["hits"]["total"]["value"],
-        "talks": talks,
+        "talks": [hit["_source"] for hit in resp["hits"]["hits"]],
+        "venues": parse_aggs(resp["aggregations"]),
     }
 
