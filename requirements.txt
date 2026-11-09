@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+elasticsearch>=9,<10
+openai
+pytest
+httpx
