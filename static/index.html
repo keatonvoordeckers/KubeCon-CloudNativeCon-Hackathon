@@ -313,6 +313,30 @@
         <button id="btn-close-schedule" class="btn-icon-close" aria-label="Close schedule drawer">&times;</button>
       </div>
 
+      <!-- Calendar Export Bar -->
+      <div id="schedule-export-bar" class="schedule-export-bar" style="display: none;">
+        <div class="export-bar-label">
+          <span>Export options</span>
+        </div>
+        <div class="export-bar-actions">
+          <button id="btn-export-apple-all" class="btn-cal-export btn-export-apple" aria-label="Export all sessions to Apple Calendar (.ics)">
+            <svg class="cal-btn-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.38c.62-.75 1.04-1.8 1.01-2.85-.9.04-2.02.6-2.67 1.34-.56.64-1.06 1.7-1.01 2.74 1 .08 2.05-.48 2.67-1.23z"/>
+            </svg>
+            <span>Apple / iCal (.ics)</span>
+          </button>
+          <button id="btn-export-google-all" class="btn-cal-export btn-export-google" aria-label="Export all sessions to Google Calendar">
+            <svg class="cal-btn-icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+            <span>Google Calendar</span>
+          </button>
+        </div>
+      </div>
+
       <div class="drawer-body" id="schedule-talks-list">
         <!-- Saved talks populated here with conflict flags -->
       </div>
@@ -348,6 +372,57 @@
             <div style="display: flex; gap: 0.75rem; margin-top: 0.5rem;">
               <button id="btn-toggle-contrast" class="btn-pill-small">Toggle High Contrast</button>
               <button id="btn-toggle-font" class="btn-pill-small">Cycle Font Size</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. GOOGLE CALENDAR EXPORT MODAL -->
+    <div id="gcal-export-modal" class="modal-backdrop" style="display: none;">
+      <div class="modal-card gcal-modal-card" role="dialog" aria-modal="true" aria-labelledby="gcal-modal-title">
+        <div class="modal-header">
+          <h3 id="gcal-modal-title" style="display: flex; align-items: center; gap: 0.6rem; font-size: 1.15rem;">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+            Export to Google Calendar
+          </h3>
+          <button id="btn-close-gcal-modal" class="btn-icon-close" aria-label="Close Google Calendar modal">&times;</button>
+        </div>
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 1.25rem;">
+          <p style="color: #94a3b8; font-size: 0.85rem; line-height: 1.5;">
+            Google Calendar allows adding events directly via template links or importing all sessions at once via an iCal (<code style="color: #38bdf8;">.ics</code>) file.
+          </p>
+
+          <div class="gcal-export-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+              <h4 style="color: #f8fafc; font-size: 0.9rem; font-weight: 600;">Option 1: Add Sessions Individually</h4>
+              <button id="btn-gcal-open-all" class="btn-gcal-open-all" title="Open all sessions in separate Google Calendar tabs">
+                Open All in Tabs ↗
+              </button>
+            </div>
+            <div id="gcal-sessions-list" class="gcal-sessions-list" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 240px; overflow-y: auto;">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <div class="gcal-export-section" style="padding-top: 1rem; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+            <h4 style="color: #f8fafc; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.35rem;">Option 2: Import All Sessions via .ics</h4>
+            <p style="color: #94a3b8; font-size: 0.8rem; margin-bottom: 0.75rem; line-height: 1.4;">
+              1. Download your full schedule as an .ics file.<br/>
+              2. Open Google Calendar Settings &rarr; Import and select the file.
+            </p>
+            <div style="display: flex; gap: 0.6rem; flex-wrap: wrap;">
+              <button id="btn-gcal-download-ics" class="btn-cal-export btn-export-apple" style="padding: 0.45rem 1rem;">
+                📥 Download .ics File
+              </button>
+              <a href="https://calendar.google.com/calendar/u/0/r/settings/export" target="_blank" rel="noopener noreferrer" class="btn-cal-export btn-export-google" style="padding: 0.45rem 1rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.4rem;">
+                ⚙️ Open Google Calendar Import ↗
+              </a>
             </div>
           </div>
         </div>

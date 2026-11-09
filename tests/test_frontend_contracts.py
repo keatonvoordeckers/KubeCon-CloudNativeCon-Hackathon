@@ -118,3 +118,58 @@ def test_k8s_background_contracts():
         app_js = f.read()
     assert 'initK8sBackground' in app_js, "app.js missing initK8sBackground import/call"
 
+
+def test_calendar_export_contracts():
+    """Verify calendar export contracts for Apple/iCal .ics and Google Calendar."""
+    # 1. Module exports
+    with open('static/js/calendarExport.js', 'r') as f:
+        export_js = f.read()
+    assert 'export function generateGoogleCalendarUrl' in export_js
+    assert 'export function generateIcsCalendar' in export_js
+    assert 'export function downloadIcsFile' in export_js
+    assert 'export function openGoogleCalendar' in export_js
+    assert 'export function escapeIcsText' in export_js
+    assert 'export function foldIcsLine' in export_js
+
+    # 2. HTML elements for export
+    with open('static/index.html', 'r') as f:
+        html = f.read()
+    assert 'id="schedule-export-bar"' in html, "index.html missing schedule-export-bar"
+    assert 'id="btn-export-apple-all"' in html, "index.html missing btn-export-apple-all"
+    assert 'id="btn-export-google-all"' in html, "index.html missing btn-export-google-all"
+    assert 'id="gcal-export-modal"' in html, "index.html missing gcal-export-modal"
+    assert 'id="gcal-sessions-list"' in html, "index.html missing gcal-sessions-list"
+    assert 'id="btn-gcal-download-ics"' in html, "index.html missing btn-gcal-download-ics"
+    assert 'id="btn-gcal-open-all"' in html, "index.html missing btn-gcal-open-all"
+
+    # 3. CSS styles in components.css
+    with open('static/css/components.css', 'r') as f:
+        components_css = f.read()
+    assert '.schedule-export-bar' in components_css, "components.css missing .schedule-export-bar"
+    assert '.btn-cal-export' in components_css, "components.css missing .btn-cal-export"
+    assert '.btn-export-apple' in components_css, "components.css missing .btn-export-apple"
+    assert '.btn-export-google' in components_css, "components.css missing .btn-export-google"
+    assert '.schedule-card-actions' in components_css, "components.css missing .schedule-card-actions"
+    assert '.btn-card-cal' in components_css, "components.css missing .btn-card-cal"
+    assert '.gcal-modal-card' in components_css, "components.css missing .gcal-modal-card"
+
+    # 4. App.js integration
+    with open('static/js/app.js', 'r') as f:
+        app_js = f.read()
+    assert 'calendarExport.js' in app_js, "app.js missing calendarExport import"
+    assert 'btnExportAppleAll' in app_js, "app.js missing btnExportAppleAll wiring"
+    assert 'btnExportGoogleAll' in app_js, "app.js missing btnExportGoogleAll wiring"
+    assert 'schedule-card-actions' in app_js, "app.js missing schedule-card-actions in cards"
+    assert 'window.exportTalkToIcs' in app_js, "app.js missing window.exportTalkToIcs"
+    assert 'window.exportTalkToGoogle' in app_js, "app.js missing window.exportTalkToGoogle"
+
+
+if __name__ == '__main__':
+    test_mock_talks_schema()
+    test_conflict_logic_overlap()
+    test_conflict_logic_consecutive_no_conflict()
+    test_conflict_logic_different_days()
+    test_k8s_background_contracts()
+    test_calendar_export_contracts()
+    print("All frontend contracts & calendar export tests passed successfully!")
+

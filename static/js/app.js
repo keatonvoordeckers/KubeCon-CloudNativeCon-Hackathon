@@ -3,6 +3,12 @@ import { State } from './state.js';
 import { Schedule } from './schedule.js';
 import { MOCK_TALKS } from './mockData.js';
 import { initK8sBackground } from './k8sBackground.js';
+import {
+  generateGoogleCalendarUrl,
+  generateIcsCalendar,
+  downloadIcsFile,
+  openGoogleCalendar
+} from './calendarExport.js';
 
 // DOM Views
 const viewLanding = document.getElementById('view-landing');
@@ -64,6 +70,16 @@ const dockScheduleBadge = document.getElementById('dock-schedule-badge');
 const btnCloseSchedule = document.getElementById('btn-close-schedule');
 const btnDoneSchedule = document.getElementById('btn-done-schedule');
 const btnClearSchedule = document.getElementById('btn-clear-schedule');
+const scheduleExportBar = document.getElementById('schedule-export-bar');
+const btnExportAppleAll = document.getElementById('btn-export-apple-all');
+const btnExportGoogleAll = document.getElementById('btn-export-google-all');
+
+// Google Calendar Export Modal Elements
+const gcalExportModal = document.getElementById('gcal-export-modal');
+const btnCloseGcalModal = document.getElementById('btn-close-gcal-modal');
+const btnGcalDownloadIcs = document.getElementById('btn-gcal-download-ics');
+const btnGcalOpenAll = document.getElementById('btn-gcal-open-all');
+const gcalSessionsList = document.getElementById('gcal-sessions-list');
 
 // Info Modal
 const infoModal = document.getElementById('info-modal');
@@ -350,7 +366,10 @@ function setupEventListeners() {
   navBtnSchedule.addEventListener('click', openScheduleDrawer);
   btnCloseSchedule.addEventListener('click', closeScheduleDrawer);
   btnDoneSchedule.addEventListener('click', closeScheduleDrawer);
-  drawerBackdrop.addEventListener('click', closeScheduleDrawer);
+  drawerBackdrop.addEventListener('click', () => {
+    closeScheduleDrawer();
+    closeGcalModal();
+  });
 
   btnClearSchedule.addEventListener('click', () => {
     if (confirm('Clear your entire schedule?')) {
@@ -361,6 +380,43 @@ function setupEventListeners() {
       renderOffsiteTalks();
       announce('Schedule cleared');
     }
+  });
+
+  // Calendar Export Event Listeners
+  btnExportAppleAll?.addEventListener('click', () => {
+    const savedIds = Schedule.getSavedIds();
+    const savedTalks = savedIds.map(id => MOCK_TALKS.find(t => String(t.id) === String(id))).filter(Boolean);
+    if (savedTalks.length === 0) return;
+    downloadIcsFile(savedTalks, 'kubecon-2026-schedule.ics');
+    announce(`Downloaded ${savedTalks.length} ${savedTalks.length === 1 ? 'session' : 'sessions'} for Apple Calendar`);
+  });
+
+  btnExportGoogleAll?.addEventListener('click', () => {
+    const savedIds = Schedule.getSavedIds();
+    const savedTalks = savedIds.map(id => MOCK_TALKS.find(t => String(t.id) === String(id))).filter(Boolean);
+    if (savedTalks.length === 0) return;
+    if (savedTalks.length === 1) {
+      openGoogleCalendar(savedTalks[0]);
+      announce(`Opening "${savedTalks[0].title}" in Google Calendar`);
+    } else {
+      openGcalModal(savedTalks);
+    }
+  });
+
+  btnCloseGcalModal?.addEventListener('click', closeGcalModal);
+  btnGcalDownloadIcs?.addEventListener('click', () => {
+    const savedIds = Schedule.getSavedIds();
+    const savedTalks = savedIds.map(id => MOCK_TALKS.find(t => String(t.id) === String(id))).filter(Boolean);
+    if (savedTalks.length > 0) {
+      downloadIcsFile(savedTalks, 'kubecon-schedule-google-import.ics');
+      announce('Downloaded calendar file for Google Calendar import');
+    }
+  });
+  btnGcalOpenAll?.addEventListener('click', () => {
+    const savedIds = Schedule.getSavedIds();
+    const savedTalks = savedIds.map(id => MOCK_TALKS.find(t => String(t.id) === String(id))).filter(Boolean);
+    savedTalks.forEach(talk => openGoogleCalendar(talk));
+    announce(`Opened ${savedTalks.length} Google Calendar tabs`);
   });
 
   // 7. Info Modal
@@ -592,6 +648,7 @@ function renderScheduleDrawer() {
   scheduleSummaryText.textContent = `${savedIds.length} ${savedIds.length === 1 ? 'session' : 'sessions'} saved`;
 
   if (savedIds.length === 0) {
+    if (scheduleExportBar) scheduleExportBar.style.display = 'none';
     scheduleTalksList.innerHTML = `
       <div style="padding: 3rem 1rem; text-align: center; color: #94a3b8;">
         <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">📅 Your schedule is empty</p>
@@ -601,6 +658,7 @@ function renderScheduleDrawer() {
     return;
   }
 
+  if (scheduleExportBar) scheduleExportBar.style.display = 'flex';
   const savedTalks = savedIds.map(id => MOCK_TALKS.find(t => String(t.id) === String(id))).filter(Boolean);
   const conflicts = Schedule.findConflicts(savedTalks);
   const conflictCount = Object.keys(conflicts).length;
@@ -616,6 +674,7 @@ function renderScheduleDrawer() {
       const hasConflict = Boolean(conflicts[talk.id]);
       const conflictingWith = conflicts[talk.id] || [];
       const time = formatTime(talk.start, talk.end);
+      const gcalUrl = generateGoogleCalendarUrl(talk);
 
       return `
         <div class="dropdown-item" style="background: rgba(255, 255, 255, 0.05); border: 1px solid ${hasConflict ? '#ef4444' : 'rgba(255, 255, 255, 0.1)'}; padding: 1rem;">
@@ -636,11 +695,79 @@ function renderScheduleDrawer() {
           <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.4rem;">
             <span>🕒 ${time}</span> · <span>📍 ${talk.location?.venue || 'Salt Palace'} ${talk.location?.room || ''}</span>
           </div>
+          <div class="schedule-card-actions">
+            <span class="card-export-label">Export:</span>
+            <a href="${gcalUrl}" target="_blank" rel="noopener noreferrer" class="btn-card-cal btn-card-gcal" title="Add to Google Calendar">
+              <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+              </svg>
+              <span>+ Google Cal</span>
+            </a>
+            <button
+              type="button"
+              class="btn-card-cal btn-card-ical"
+              onclick="window.exportTalkToIcs('${talk.id}')"
+              title="Download Apple / iCal (.ics) for this session"
+            >
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">
+                <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.38c.62-.75 1.04-1.8 1.01-2.85-.9.04-2.02.6-2.67 1.34-.56.64-1.06 1.7-1.01 2.74 1 .08 2.05-.48 2.67-1.23z"/>
+              </svg>
+              <span>+ Apple / iCal</span>
+            </button>
+          </div>
         </div>
       `;
     }).join('')}
   `;
 }
+
+function openGcalModal(talks) {
+  if (!gcalExportModal || !gcalSessionsList) return;
+  gcalSessionsList.innerHTML = talks.map(talk => {
+    const time = formatTime(talk.start, talk.end);
+    const gUrl = generateGoogleCalendarUrl(talk);
+    return `
+      <div class="gcal-session-row">
+        <div style="flex: 1; min-width: 0;">
+          <div style="color: #f8fafc; font-size: 0.85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            ${talk.title}
+          </div>
+          <div style="color: #94a3b8; font-size: 0.73rem; margin-top: 2px;">
+            🕒 ${time} · 📍 ${talk.location?.room_full || talk.location?.venue || 'Salt Palace'}
+          </div>
+        </div>
+        <a href="${gUrl}" target="_blank" rel="noopener noreferrer" class="btn-cal-export btn-export-google" style="padding: 3px 9px; font-size: 0.72rem; flex: 0 0 auto; text-decoration: none;">
+          Add ↗
+        </a>
+      </div>
+    `;
+  }).join('');
+  gcalExportModal.style.display = 'flex';
+  announce('Opened Google Calendar export dialog');
+}
+
+function closeGcalModal() {
+  if (gcalExportModal) gcalExportModal.style.display = 'none';
+}
+
+window.exportTalkToIcs = function(talkId) {
+  const talk = MOCK_TALKS.find(t => String(t.id) === String(talkId));
+  if (talk) {
+    downloadIcsFile([talk], `kubecon-session-${talk.id}.ics`);
+    announce(`Downloaded calendar file for ${talk.title}`);
+  }
+};
+
+window.exportTalkToGoogle = function(talkId) {
+  const talk = MOCK_TALKS.find(t => String(t.id) === String(talkId));
+  if (talk) {
+    openGoogleCalendar(talk);
+    announce(`Opening "${talk.title}" in Google Calendar`);
+  }
+};
 
 window.removeTalkFromDrawer = function(talkId) {
   Schedule.removeTalk(talkId);
