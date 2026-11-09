@@ -1,16 +1,22 @@
 import os
 
+from dotenv import load_dotenv
 from elasticsearch import Elasticsearch
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 
 from app.search import AGGS, build_filters, build_query, parse_aggs
 
 # Settings come from .env
-ES_URL = os.environ["ES_URL"]
-ES_INDEX = os.environ["ES_INDEX"]
+load_dotenv()
+ES_URL = os.environ.get("ES_URL", "http://localhost:9200")
+ES_INDEX = os.environ.get("ES_INDEX", "kubecon-talks")
 
-ai = OpenAI()
+try:
+    ai = OpenAI() if os.environ.get("OPENAI_API_KEY") else None
+except Exception:
+    ai = None
 
 es = Elasticsearch(ES_URL)
 
@@ -37,7 +43,7 @@ def search(q: str = "", day: str | None = None, topic: str | None = None,
     query = build_query(q, filters)
 
     knn = None
-    if q.strip():
+    if q.strip() and ai is not None:
         try:
             vector = ai.embeddings.create(model="text-embedding-3-small", input=q).data[0].embedding
             knn = {
@@ -66,4 +72,8 @@ def search(q: str = "", day: str | None = None, topic: str | None = None,
         "talks": [hit["_source"] for hit in resp["hits"]["hits"]],
         "venues": parse_aggs(resp["aggregations"]),
     }
+
+if os.path.isdir("static"):
+    app.mount("/", StaticFiles(directory="static", html=True), name="static")
+
 
