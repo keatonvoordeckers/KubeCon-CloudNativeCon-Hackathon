@@ -2,6 +2,7 @@ import { API } from './api.js';
 import { State } from './state.js';
 import { Schedule } from './schedule.js';
 import { MOCK_TALKS } from './mockData.js';
+import { initK8sBackground } from './k8sBackground.js';
 
 // DOM Views
 const viewLanding = document.getElementById('view-landing');
@@ -126,6 +127,7 @@ function switchView(viewName) {
 
 // Initialize Application
 async function init() {
+  initK8sBackground('k8s-topology-canvas');
   setupEventListeners();
   setupFloorplanSync();
   updateScheduleBadges();

@@ -84,6 +84,16 @@ body {
   z-index: 1;
 }
 
+/* Animated K8s Topology Background Canvas */
+.k8s-topology-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
 /* 1. TOP NAV BAR */
 .top-nav-bar {
   position: absolute;

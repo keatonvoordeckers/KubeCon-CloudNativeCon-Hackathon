@@ -1,7 +1,10 @@
 import json
 import re
 from datetime import datetime
-import pytest
+try:
+    import pytest
+except ImportError:
+    pytest = None
 
 def parse_mock_data():
     with open('static/js/mockData.js', 'r') as f:
@@ -95,3 +98,23 @@ def test_conflict_logic_different_days():
         "end": "2026-11-10T12:00:00"
     }
     assert talk_a['day'] != talk_b['day']
+
+def test_k8s_background_contracts():
+    """Verify background canvas, CSS styles, and module integration."""
+    with open('static/index.html', 'r') as f:
+        html = f.read()
+    assert 'id="k8s-topology-canvas"' in html, "index.html missing k8s-topology-canvas"
+
+    with open('static/css/style.css', 'r') as f:
+        css = f.read()
+    assert '.k8s-topology-canvas' in css, "style.css missing .k8s-topology-canvas rule"
+
+    with open('static/js/k8sBackground.js', 'r') as f:
+        k8s_js = f.read()
+    assert 'export class K8sTopologyBackground' in k8s_js, "k8sBackground.js missing K8sTopologyBackground class"
+    assert 'export function initK8sBackground' in k8s_js, "k8sBackground.js missing initK8sBackground export"
+
+    with open('static/js/app.js', 'r') as f:
+        app_js = f.read()
+    assert 'initK8sBackground' in app_js, "app.js missing initK8sBackground import/call"
+
