@@ -111,7 +111,7 @@ def test_k8s_background_contracts():
 
     with open('static/js/k8sBackground.js', 'r') as f:
         k8s_js = f.read()
-    assert 'export class K8sTopologyBackground' in k8s_js, "k8sBackground.js missing K8sTopologyBackground class"
+    assert 'K8sTopologyBackground' in k8s_js, "k8sBackground.js missing K8sTopologyBackground export"
     assert 'export function initK8sBackground' in k8s_js, "k8sBackground.js missing initK8sBackground export"
 
     with open('static/js/app.js', 'r') as f:

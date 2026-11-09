@@ -1,20 +1,21 @@
 /**
- * k8sBackground.js
- * Renders an interactive animated Kubernetes cluster topology on a 2D canvas in the website background.
- * Features:
- *  - Interconnected Kubernetes master nodes (isometric glowing blue cubes with K8s helm logo)
- *  - Peripheral worker/etcd nodes (isometric glowing orange cubes with minimalist lock emblems)
- *  - Network conduits connecting intra-cluster nodes and inter-cluster backbones
- *  - Pre-seeded and continuous animated neon-green glowing "packets" traversing connections
- *  - Dynamic packet motion trails, arrival ripple animations, and node glow breathing
- *  - DPI-aware, responsive resizing, and battery-friendly tab visibility handling
+ * k8sBackground.js - "Living Cloud-Native Galaxy & Interactive Mesh"
+ *
+ * A playful, fun, high-energy background for KubeCon SLC:
+ *  - Floating, buoyant cloud-native Pods & Microservices with orbiting Envoy sidecars
+ *  - Dynamic elastic network beams that morph as pods drift
+ *  - High-speed neon-green glowing comets (data packets) with sparkling tails
+ *  - Microservice fan-out bursts and energetic starburst arrival pops
+ *  - Interactive mouse dynamics: cursor acts as a Client Gateway, sending packets to nearby pods
+ *  - Click ripple shockwaves sending data packet bursts across the cluster
+ *  - Non-blocking pointer events with zero interference on conference UI
  */
 
-export class K8sTopologyBackground {
+export class K8sFunGalaxyBackground {
   constructor(canvasId) {
     this.canvas = document.getElementById(canvasId);
     if (!this.canvas) {
-      console.warn(`[K8sBackground] Canvas with id "${canvasId}" not found.`);
+      console.warn(`[K8sBackground] Canvas #${canvasId} not found.`);
       return;
     }
 
@@ -25,20 +26,25 @@ export class K8sTopologyBackground {
     this.width = 0;
     this.height = 0;
 
-    this.clusters = [];
+    // Simulation collections
     this.nodes = [];
-    this.edges = [];
     this.packets = [];
-    this.ripples = [];
+    this.particles = [];
+    this.shockwaves = [];
 
-    this.maxPackets = 30;
-    this.lastSpawnTime = 0;
-    this.spawnInterval = 180; // ms between random packet spawns
-    this.lastFrameTime = performance.now();
-    this.animationFrameId = null;
+    // Configuration
+    this.maxDistance = 220; // max connection distance between nodes
+    this.maxPackets = 40;
+    this.spawnTimer = 0;
+    this.fanoutTimer = 0;
+    this.lastTime = performance.now();
     this.isRunning = false;
 
-    // Check prefers-reduced-motion
+    // Mouse / Client Gateway interaction
+    this.mouse = { x: -1000, y: -1000, active: false, clientTetherNodes: [] };
+    this.mousePacketTimer = 0;
+
+    // Reduced motion check
     this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     this.init();
@@ -48,7 +54,30 @@ export class K8sTopologyBackground {
     this.resize();
     window.addEventListener('resize', () => this.resize());
 
-    // Pause when page is hidden to save GPU/battery
+    // Window-level mouse tracking so background interacts without blocking UI clicks
+    window.addEventListener('mousemove', (e) => {
+      this.mouse.x = e.clientX;
+      this.mouse.y = e.clientY;
+      this.mouse.active = true;
+    });
+
+    window.addEventListener('mouseleave', () => {
+      this.mouse.active = false;
+      this.mouse.x = -1000;
+      this.mouse.y = -1000;
+    });
+
+    // Clicking anywhere on the background triggers an energetic cluster ping shockwave
+    window.addEventListener('pointerdown', (e) => {
+      // Don't trigger if user clicked an interactive control (button, input, link, card)
+      const targetTag = e.target.tagName.toLowerCase();
+      if (['button', 'input', 'a', 'select', 'textarea'].includes(targetTag) || e.target.closest('button, a, input, .venue-card, .search-dropdown-menu, .schedule-drawer')) {
+        return;
+      }
+      this.triggerShockwave(e.clientX, e.clientY);
+    });
+
+    // Tab visibility handling
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         this.stop();
@@ -76,256 +105,372 @@ export class K8sTopologyBackground {
 
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
 
-    this.buildTopology();
+    this.maxDistance = Math.max(170, Math.min(260, this.width * 0.16));
+    this.createClusterEcosystem();
 
     if (this.reducedMotion) {
       this.drawStaticFrame();
     }
   }
 
-  buildTopology() {
-    this.clusters = [];
+  createClusterEcosystem() {
     this.nodes = [];
-    this.edges = [];
     this.packets = [];
-    this.ripples = [];
+    this.particles = [];
+    this.shockwaves = [];
 
     const w = this.width;
     const h = this.height;
 
-    // Responsive scale factor for node sizes and spacing
-    const scale = Math.max(0.75, Math.min(1.25, Math.min(w / 1440, h / 900)));
+    // Determine number of buoyant pods based on screen real estate
+    const nodeCount = Math.max(16, Math.min(32, Math.floor((w * h) / 45000)));
 
-    // 4 Cluster Hub locations placed strategically in quadrants to frame central UI
-    const clusterPositions = [
-      { rx: 0.16, ry: 0.23, id: 'cluster-west-1' },    // Top-Left
-      { rx: 0.84, ry: 0.20, id: 'cluster-east-1' },    // Top-Right
-      { rx: 0.15, ry: 0.82, id: 'cluster-west-2' },    // Bottom-Left
-      { rx: 0.84, ry: 0.80, id: 'cluster-east-2' }     // Bottom-Right
+    const archetypes = [
+      {
+        type: 'control-plane',
+        name: 'K8s Master',
+        radius: 20,
+        color: '#38bdf8',
+        glow: 'rgba(56, 189, 248, 0.65)',
+        halo: 'rgba(14, 165, 233, 0.25)',
+        hasSatellites: 2,
+        hasHelm: true
+      },
+      {
+        type: 'service',
+        name: 'Microservice Pod',
+        radius: 14,
+        color: '#818cf8',
+        glow: 'rgba(129, 140, 248, 0.60)',
+        halo: 'rgba(99, 102, 241, 0.20)',
+        hasSatellites: 1,
+        hasHelm: false
+      },
+      {
+        type: 'worker',
+        name: 'Worker Node',
+        radius: 12,
+        color: '#34d399',
+        glow: 'rgba(52, 211, 153, 0.60)',
+        halo: 'rgba(16, 185, 129, 0.20)',
+        hasSatellites: 1,
+        hasHelm: false
+      },
+      {
+        type: 'database',
+        name: 'Stateful Store',
+        radius: 15,
+        color: '#fb923c',
+        glow: 'rgba(251, 146, 60, 0.65)',
+        halo: 'rgba(234, 88, 12, 0.20)',
+        hasSatellites: 1,
+        hasHelm: false
+      }
     ];
 
-    // If screen is wide enough, add a subtle central-bottom micro-cluster
-    if (w > 1200) {
-      clusterPositions.push({ rx: 0.50, ry: 0.88, id: 'cluster-core-slc' });
+    // Seed anchor zones leaving the center venue cards open while filling perimeter real estate
+    for (let i = 0; i < nodeCount; i++) {
+      // Pick archetype
+      let arch = archetypes[1]; // default service
+      if (i % 6 === 0) arch = archetypes[0]; // K8s master
+      else if (i % 5 === 0) arch = archetypes[3]; // Stateful store
+      else if (i % 2 === 0) arch = archetypes[2]; // Worker node
+
+      // Distribute preferentially towards perimeter and corners
+      let x, y;
+      const margin = 70;
+
+      // Quadrant allocation for balanced visual interest
+      const quad = i % 4;
+      if (quad === 0) { // Top-Left
+        x = margin + Math.random() * (w * 0.38 - margin);
+        y = margin + Math.random() * (h * 0.40 - margin);
+      } else if (quad === 1) { // Top-Right
+        x = w * 0.62 + Math.random() * (w * 0.38 - margin);
+        y = margin + Math.random() * (h * 0.40 - margin);
+      } else if (quad === 2) { // Bottom-Left
+        x = margin + Math.random() * (w * 0.38 - margin);
+        y = h * 0.60 + Math.random() * (h * 0.38 - margin);
+      } else { // Bottom-Right
+        x = w * 0.62 + Math.random() * (w * 0.38 - margin);
+        y = h * 0.60 + Math.random() * (h * 0.38 - margin);
+      }
+
+      this.nodes.push({
+        id: `node-${i}`,
+        type: arch.type,
+        x: x,
+        y: y,
+        homeX: x,
+        homeY: y,
+        vx: (Math.random() - 0.5) * 0.45,
+        vy: (Math.random() - 0.5) * 0.45,
+        radius: arch.radius,
+        color: arch.color,
+        glow: arch.glow,
+        halo: arch.halo,
+        hasSatellites: arch.hasSatellites,
+        hasHelm: arch.hasHelm,
+        orbitAngle: Math.random() * Math.PI * 2,
+        orbitSpeed: 0.02 + Math.random() * 0.03,
+        pulsePhase: Math.random() * Math.PI * 2,
+        energyLevel: 1.0, // flashes on packet reception
+        connections: []
+      });
     }
 
-    // Peripheral offset templates in isometric projection angles
-    const workerOffsetTemplates = [
-      { dx: -70, dy: -36 },
-      { dx: 72, dy: -34 },
-      { dx: 76, dy: 38 },
-      { dx: -68, dy: 44 },
-      { dx: 0, dy: -70 },
-      { dx: 0, dy: 68 }
-    ];
+    // Pre-seed some packets in flight
+    for (let i = 0; i < 18; i++) {
+      const a = this.nodes[Math.floor(Math.random() * this.nodes.length)];
+      const b = this.nodes[Math.floor(Math.random() * this.nodes.length)];
+      if (a !== b) {
+        this.spawnPacket(a, b, Math.random() * 0.9);
+      }
+    }
+  }
 
-    clusterPositions.forEach((cp, cIndex) => {
-      const masterX = Math.round(w * cp.rx);
-      const masterY = Math.round(h * cp.ry);
+  triggerShockwave(x, y) {
+    this.shockwaves.push({
+      x: x,
+      y: y,
+      radius: 5,
+      maxRadius: 280,
+      opacity: 0.95,
+      speed: 450
+    });
 
-      // Central Kubernetes Master Node
-      const masterNode = {
-        id: `master-${cIndex}`,
-        clusterIndex: cIndex,
-        type: 'master',
-        x: masterX,
-        y: masterY,
-        size: Math.round(25 * scale),
-        height: Math.round(28 * scale),
-        pulseOffset: Math.random() * Math.PI * 2,
-        colors: {
-          top: '#60a5fa',
-          left: '#2563eb',
-          right: '#1d4ed8',
-          stroke: 'rgba(191, 219, 254, 0.95)',
-          glow: 'rgba(37, 99, 235, 0.55)'
-        }
-      };
-      this.nodes.push(masterNode);
+    // Create a burst of energetic sparks at click point
+    for (let i = 0; i < 14; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 60 + Math.random() * 140;
+      this.particles.push({
+        x: x,
+        y: y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        alpha: 1.0,
+        color: '#00ff88',
+        size: 2.5 + Math.random() * 2
+      });
+    }
 
-      // Peripheral Worker/etcd nodes (4 to 5 per cluster)
-      const workerCount = cIndex === 4 ? 3 : 4 + (cIndex % 2);
-      const clusterWorkers = [];
-
-      for (let i = 0; i < workerCount; i++) {
-        const offset = workerOffsetTemplates[i % workerOffsetTemplates.length];
-        const workerX = Math.round(masterX + offset.dx * scale);
-        const workerY = Math.round(masterY + offset.dy * scale);
-
-        const workerNode = {
-          id: `worker-${cIndex}-${i}`,
-          clusterIndex: cIndex,
-          type: 'worker',
-          x: workerX,
-          y: workerY,
-          size: Math.round(16 * scale),
-          height: Math.round(18 * scale),
-          pulseOffset: Math.random() * Math.PI * 2,
-          colors: {
-            top: '#fb923c',
-            left: '#f97316',
-            right: '#ea580c',
-            stroke: 'rgba(254, 215, 170, 0.95)',
-            glow: 'rgba(249, 115, 22, 0.50)'
-          }
-        };
-        this.nodes.push(workerNode);
-        clusterWorkers.push(workerNode);
-
-        // Intra-cluster edge: Master <-> Worker
-        this.edges.push({
-          from: masterNode,
-          to: workerNode,
-          type: 'intra',
-          length: Math.hypot(workerX - masterX, workerY - masterY)
+    // Ping all nodes within shockwave radius to fire packets
+    this.nodes.forEach((node) => {
+      const dist = Math.hypot(node.x - x, node.y - y);
+      if (dist < 260) {
+        node.energyLevel = 2.0;
+        // Broadcast packets along all its connections
+        node.connections.forEach((target) => {
+          this.spawnPacket(node, target, 0);
         });
       }
-
-      this.clusters.push({
-        master: masterNode,
-        workers: clusterWorkers
-      });
-    });
-
-    // Inter-cluster backbone edges (connecting the clusters into an interconnected mesh)
-    if (this.clusters.length >= 2) {
-      // Connect adjacent clusters
-      this.addEdgeBetween(this.clusters[0].master, this.clusters[1].master, 'backbone');
-      if (this.clusters[2]) {
-        this.addEdgeBetween(this.clusters[0].master, this.clusters[2].master, 'backbone');
-      }
-      if (this.clusters[3]) {
-        this.addEdgeBetween(this.clusters[1].master, this.clusters[3].master, 'backbone');
-      }
-      if (this.clusters[2] && this.clusters[3]) {
-        this.addEdgeBetween(this.clusters[2].master, this.clusters[3].master, 'backbone');
-      }
-
-      // Connect peripheral worker bridge links for cross-cluster realism
-      if (this.clusters[0].workers[1] && this.clusters[1].workers[0]) {
-        this.addEdgeBetween(this.clusters[0].workers[1], this.clusters[1].workers[0], 'bridge');
-      }
-      if (this.clusters[2] && this.clusters[3] && this.clusters[2].workers[1] && this.clusters[3].workers[0]) {
-        this.addEdgeBetween(this.clusters[2].workers[1], this.clusters[3].workers[0], 'bridge');
-      }
-
-      // If central micro-cluster exists, connect it to left and right lower clusters
-      if (this.clusters[4]) {
-        if (this.clusters[2]) this.addEdgeBetween(this.clusters[4].master, this.clusters[2].master, 'backbone');
-        if (this.clusters[3]) this.addEdgeBetween(this.clusters[4].master, this.clusters[3].master, 'backbone');
-      }
-    }
-
-    // Pre-seed 16 active packets distributed mid-flight so background is immediately bustling
-    if (!this.reducedMotion && this.edges.length > 0) {
-      for (let i = 0; i < 16; i++) {
-        this.spawnPacket(0.1 + Math.random() * 0.8);
-      }
-    }
-  }
-
-  addEdgeBetween(nodeA, nodeB, type = 'backbone') {
-    if (!nodeA || !nodeB) return;
-    this.edges.push({
-      from: nodeA,
-      to: nodeB,
-      type: type,
-      length: Math.hypot(nodeB.x - nodeA.x, nodeB.y - nodeA.y)
     });
   }
 
-  spawnPacket(initialProgress = 0) {
-    if (this.edges.length === 0 || this.packets.length >= this.maxPackets) return;
+  spawnPacket(source, target, progress = 0) {
+    if (this.packets.length >= this.maxPackets) return;
 
-    // Pick a random edge
-    const edge = this.edges[Math.floor(Math.random() * this.edges.length)];
-    // Randomize direction
-    const reverse = Math.random() > 0.5;
-    const from = reverse ? edge.to : edge.from;
-    const to = reverse ? edge.from : edge.to;
+    const dist = Math.hypot(target.x - source.x, target.y - source.y);
+    if (dist <= 0) return;
 
-    // Packets travel at a speed proportional to distance (faster on long backbone lines)
-    const baseSpeed = edge.type === 'backbone' ? 0.32 : 0.50;
-    const speed = baseSpeed + Math.random() * 0.28;
-    const isBackbone = edge.type === 'backbone';
+    // Fast and snappy packet speeds
+    const speed = (180 + Math.random() * 120) / dist;
 
-    const p = {
-      from: from,
-      to: to,
-      progress: initialProgress,
+    const packet = {
+      from: source,
+      to: target,
+      progress: progress,
       speed: speed,
-      size: isBackbone ? 5.2 + Math.random() * 1.5 : 3.8 + Math.random() * 1.2,
+      size: 4.5 + Math.random() * 1.5,
       trail: [],
-      maxTrail: isBackbone ? 10 : 7,
-      color: '#22c55e',
-      coreColor: '#f0fdf4',
-      glowColor: '#00ff88',
-      type: edge.type
+      maxTrail: 8,
+      color: '#00ff88',
+      core: '#f0fdf4',
+      glow: '#22c55e'
     };
 
-    // If pre-seeded with progress, set initial position and trail points
-    if (initialProgress > 0) {
-      const initX = from.x + (to.x - from.x) * initialProgress;
-      const initY = from.y + (to.y - from.y) * initialProgress;
-      const dx = (to.x - from.x) * 0.03;
-      const dy = (to.y - from.y) * 0.03;
-      for (let t = 0; t < 5; t++) {
-        p.trail.push({ x: initX - dx * t, y: initY - dy * t });
-      }
+    if (progress > 0) {
+      const px = source.x + (target.x - source.x) * progress;
+      const py = source.y + (target.y - source.y) * progress;
+      packet.trail.push({ x: px, y: py });
     }
 
-    this.packets.push(p);
+    this.packets.push(packet);
   }
 
   update(dt, timestamp) {
     if (this.reducedMotion) return;
 
-    // Packet Spawner
-    if (timestamp - this.lastSpawnTime > this.spawnInterval) {
-      this.spawnPacket(0);
-      this.lastSpawnTime = timestamp;
-      // Slight jitter in next spawn interval for organic rhythm
-      this.spawnInterval = 140 + Math.random() * 220;
+    const w = this.width;
+    const h = this.height;
+
+    // 1. Update Floating Nodes with buoyant spring physics
+    this.nodes.forEach((node) => {
+      // Gentle drift
+      node.x += node.vx;
+      node.y += node.vy;
+
+      // Soft spring tether towards home anchor to maintain balanced distribution
+      const dxHome = node.homeX - node.x;
+      const dyHome = node.homeY - node.y;
+      node.vx += dxHome * 0.00035;
+      node.vy += dyHome * 0.00035;
+
+      // Dampen velocity
+      node.vx *= 0.99;
+      node.vy *= 0.99;
+
+      // Boundary soft bounce
+      const pad = 40;
+      if (node.x < pad) { node.x = pad; node.vx = Math.abs(node.vx); }
+      if (node.x > w - pad) { node.x = w - pad; node.vx = -Math.abs(node.vx); }
+      if (node.y < pad) { node.y = pad; node.vy = Math.abs(node.vy); }
+      if (node.y > h - pad) { node.y = h - pad; node.vy = -Math.abs(node.vy); }
+
+      // Orbiting Envoy satellites
+      node.orbitAngle += node.orbitSpeed;
+
+      // Decay energy pulse back to baseline 1.0
+      if (node.energyLevel > 1.0) {
+        node.energyLevel = Math.max(1.0, node.energyLevel - dt * 2.2);
+      }
+
+      // Mouse gentle repulsion (pods playfully swim away from cursor)
+      if (this.mouse.active) {
+        const mouseDist = Math.hypot(node.x - this.mouse.x, node.y - this.mouse.y);
+        if (mouseDist < 120 && mouseDist > 0) {
+          const force = (1 - mouseDist / 120) * 1.8;
+          const nx = (node.x - this.mouse.x) / mouseDist;
+          const ny = (node.y - this.mouse.y) / mouseDist;
+          node.vx += nx * force;
+          node.vy += ny * force;
+        }
+      }
+    });
+
+    // 2. Recompute dynamic mesh connections
+    this.nodes.forEach((node) => {
+      node.connections = [];
+    });
+
+    for (let i = 0; i < this.nodes.length; i++) {
+      for (let j = i + 1; j < this.nodes.length; j++) {
+        const a = this.nodes[i];
+        const b = this.nodes[j];
+        const d = Math.hypot(b.x - a.x, b.y - a.y);
+        if (d < this.maxDistance) {
+          a.connections.push(b);
+          b.connections.push(a);
+        }
+      }
     }
 
-    // Update Packets
+    // 3. Mouse "Client Gateway" - Find nearest pods to user cursor
+    this.mouse.clientTetherNodes = [];
+    if (this.mouse.active) {
+      const sortedByMouse = [...this.nodes]
+        .map((n) => ({ node: n, dist: Math.hypot(n.x - this.mouse.x, n.y - this.mouse.y) }))
+        .sort((a, b) => a.dist - b.dist);
+
+      // Tether to the 2 closest pods within 280px
+      for (let i = 0; i < Math.min(2, sortedByMouse.length); i++) {
+        if (sortedByMouse[i].dist < 280) {
+          this.mouse.clientTetherNodes.push(sortedByMouse[i].node);
+        }
+      }
+
+      // Stream user client request packets to tethered pods!
+      if (timestamp - this.mousePacketTimer > 180 && this.mouse.clientTetherNodes.length > 0) {
+        const target = this.mouse.clientTetherNodes[Math.floor(Math.random() * this.mouse.clientTetherNodes.length)];
+        const virtualClientNode = { x: this.mouse.x, y: this.mouse.y, type: 'client' };
+        this.spawnPacket(virtualClientNode, target, 0);
+        this.mousePacketTimer = timestamp;
+      }
+    }
+
+    // 4. Autonomous Packet Spawner
+    if (timestamp - this.spawnTimer > 160) {
+      // Pick a random node with connections
+      const connectedNodes = this.nodes.filter((n) => n.connections.length > 0);
+      if (connectedNodes.length > 0) {
+        const source = connectedNodes[Math.floor(Math.random() * connectedNodes.length)];
+        const target = source.connections[Math.floor(Math.random() * source.connections.length)];
+        this.spawnPacket(source, target, 0);
+      }
+      this.spawnTimer = timestamp;
+    }
+
+    // 5. Periodic Microservice Fanout Rush (fun cloud-native burst)
+    if (timestamp - this.fanoutTimer > 3200) {
+      const masters = this.nodes.filter((n) => n.type === 'control-plane' && n.connections.length >= 2);
+      if (masters.length > 0) {
+        const master = masters[Math.floor(Math.random() * masters.length)];
+        master.energyLevel = 2.4;
+        master.connections.forEach((target) => {
+          this.spawnPacket(master, target, 0);
+        });
+      }
+      this.fanoutTimer = timestamp;
+    }
+
+    // 6. Update Packets
     for (let i = this.packets.length - 1; i >= 0; i--) {
       const p = this.packets[i];
       p.progress += p.speed * dt;
 
-      // Current position
-      const currX = p.from.x + (p.to.x - p.from.x) * p.progress;
-      const currY = p.from.y + (p.to.y - p.from.y) * p.progress;
+      const px = p.from.x + (p.to.x - p.from.x) * p.progress;
+      const py = p.from.y + (p.to.y - p.from.y) * p.progress;
 
-      // Store trail history
-      p.trail.unshift({ x: currX, y: currY });
+      p.trail.unshift({ x: px, y: py });
       if (p.trail.length > p.maxTrail) {
         p.trail.pop();
       }
 
       // Check arrival
       if (p.progress >= 1.0) {
-        // Trigger arrival ripple
-        this.ripples.push({
-          x: p.to.x,
-          y: p.to.y,
-          radius: 3,
-          maxRadius: p.to.type === 'master' ? 24 : 16,
-          alpha: 0.95,
-          color: '#22c55e'
-        });
+        // Trigger arrival starburst & node pulse
+        p.to.energyLevel = Math.min(2.5, (p.to.energyLevel || 1.0) + 0.35);
+
+        // Starburst sparks
+        const sparkCount = 6;
+        for (let s = 0; s < sparkCount; s++) {
+          const angle = (Math.PI * 2 * s) / sparkCount + Math.random() * 0.4;
+          const spd = 25 + Math.random() * 45;
+          this.particles.push({
+            x: p.to.x,
+            y: p.to.y,
+            vx: Math.cos(angle) * spd,
+            vy: Math.sin(angle) * spd,
+            alpha: 1.0,
+            color: '#00ff88',
+            size: 2.0 + Math.random() * 1.5
+          });
+        }
 
         this.packets.splice(i, 1);
       }
     }
 
-    // Update Ripples
-    for (let i = this.ripples.length - 1; i >= 0; i--) {
-      const r = this.ripples[i];
-      r.radius += dt * 42;
-      r.alpha -= dt * 2.0;
-      if (r.alpha <= 0 || r.radius >= r.maxRadius) {
-        this.ripples.splice(i, 1);
+    // 7. Update Particles
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const pt = this.particles[i];
+      pt.x += pt.vx * dt;
+      pt.y += pt.vy * dt;
+      pt.vx *= 0.94;
+      pt.vy *= 0.94;
+      pt.alpha -= dt * 2.2;
+      if (pt.alpha <= 0) {
+        this.particles.splice(i, 1);
+      }
+    }
+
+    // 8. Update Shockwaves
+    for (let i = this.shockwaves.length - 1; i >= 0; i--) {
+      const sw = this.shockwaves[i];
+      sw.radius += sw.speed * dt;
+      sw.opacity -= dt * 1.5;
+      if (sw.opacity <= 0 || sw.radius >= sw.maxRadius) {
+        this.shockwaves.splice(i, 1);
       }
     }
   }
@@ -334,67 +479,105 @@ export class K8sTopologyBackground {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.width, this.height);
 
-    // 1. Draw Network Conduits / Connections
-    this.renderEdges(ctx);
+    // 1. Draw Dynamic Living Mesh Conduits
+    this.renderConduits(ctx);
 
-    // 2. Draw Ripples
-    this.renderRipples(ctx);
+    // 2. Draw Client Gateway Beam to Mouse
+    this.renderMouseClientBeam(ctx);
 
-    // 3. Draw Active Neon Green Packets
+    // 3. Draw Shockwaves
+    this.renderShockwaves(ctx);
+
+    // 4. Draw Neon Green Comets (Packets) & Trails
     this.renderPackets(ctx);
 
-    // 4. Draw Glowing Isometric Cubes & K8s Emblem
-    this.renderNodes(ctx, timestamp);
+    // 5. Draw Arrival Starburst Sparks
+    this.renderParticles(ctx);
+
+    // 6. Draw Buoyant Cloud-Native Pods with Orbiting Envoy Sidecars
+    this.renderPods(ctx, timestamp);
   }
 
-  renderEdges(ctx) {
+  renderConduits(ctx) {
     ctx.save();
-    for (const edge of this.edges) {
-      ctx.beginPath();
-      ctx.moveTo(edge.from.x, edge.from.y);
-      ctx.lineTo(edge.to.x, edge.to.y);
+    for (let i = 0; i < this.nodes.length; i++) {
+      const a = this.nodes[i];
+      for (const b of a.connections) {
+        if (a.id > b.id) continue; // draw each edge once
 
-      if (edge.type === 'backbone') {
-        // Inter-cluster trunk lines: slightly brighter cyan/blue conduit
-        ctx.strokeStyle = 'rgba(96, 165, 250, 0.42)';
-        ctx.lineWidth = 2.0;
-        ctx.setLineDash([8, 6]);
-      } else if (edge.type === 'bridge') {
-        // Secondary cross-links
-        ctx.strokeStyle = 'rgba(96, 165, 250, 0.30)';
+        const dist = Math.hypot(b.x - a.x, b.y - a.y);
+        const alpha = Math.max(0, (1 - dist / this.maxDistance) * 0.38);
+
+        ctx.strokeStyle = `rgba(56, 189, 248, ${alpha})`;
         ctx.lineWidth = 1.4;
-        ctx.setLineDash([4, 4]);
-      } else {
-        // Intra-cluster links: solid subtle conduit
-        ctx.strokeStyle = 'rgba(59, 130, 246, 0.32)';
-        ctx.lineWidth = 1.6;
-        ctx.setLineDash([]);
-      }
-      ctx.stroke();
-
-      // Draw subtle terminal dots at edge midpoint for cybernetic circuit feel
-      if (edge.type === 'backbone') {
-        const midX = (edge.from.x + edge.to.x) * 0.5;
-        const midY = (edge.from.y + edge.to.y) * 0.5;
-        ctx.fillStyle = 'rgba(96, 165, 250, 0.55)';
         ctx.beginPath();
-        ctx.arc(midX, midY, 2.2, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+
+        // Subtle glowing midpoint signal
+        if (dist < this.maxDistance * 0.65) {
+          const midX = (a.x + b.x) * 0.5;
+          const midY = (a.y + b.y) * 0.5;
+          ctx.fillStyle = `rgba(56, 189, 248, ${alpha * 1.4})`;
+          ctx.beginPath();
+          ctx.arc(midX, midY, 1.8, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
     }
     ctx.restore();
   }
 
-  renderRipples(ctx) {
-    if (this.ripples.length === 0) return;
+  renderMouseClientBeam(ctx) {
+    if (!this.mouse.active || this.mouse.clientTetherNodes.length === 0) return;
+
     ctx.save();
-    for (const r of this.ripples) {
-      ctx.strokeStyle = `rgba(34, 197, 94, ${Math.max(0, r.alpha)})`;
-      ctx.lineWidth = 2.0;
-      ctx.shadowColor = '#00ff88';
-      ctx.shadowBlur = 12;
+    // Glowing beam from user cursor to tethered pods
+    for (const target of this.mouse.clientTetherNodes) {
+      const dist = Math.hypot(target.x - this.mouse.x, target.y - this.mouse.y);
+      const alpha = Math.max(0, 1 - dist / 280) * 0.65;
+
+      const grad = ctx.createLinearGradient(this.mouse.x, this.mouse.y, target.x, target.y);
+      grad.addColorStop(0, `rgba(0, 255, 136, ${alpha})`);
+      grad.addColorStop(1, `rgba(56, 189, 248, ${alpha * 0.5})`);
+
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 1.8;
+      ctx.setLineDash([5, 5]);
       ctx.beginPath();
-      ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+      ctx.moveTo(this.mouse.x, this.mouse.y);
+      ctx.lineTo(target.x, target.y);
+      ctx.stroke();
+    }
+
+    // Client Cursor Hub
+    ctx.setLineDash([]);
+    ctx.shadowColor = '#00ff88';
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = '#00ff88';
+    ctx.beginPath();
+    ctx.arc(this.mouse.x, this.mouse.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(this.mouse.x, this.mouse.y, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  renderShockwaves(ctx) {
+    if (this.shockwaves.length === 0) return;
+    ctx.save();
+    for (const sw of this.shockwaves) {
+      ctx.strokeStyle = `rgba(0, 255, 136, ${Math.max(0, sw.opacity)})`;
+      ctx.lineWidth = 2.4;
+      ctx.shadowColor = '#00ff88';
+      ctx.shadowBlur = 18;
+      ctx.beginPath();
+      ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
       ctx.stroke();
     }
     ctx.restore();
@@ -409,34 +592,34 @@ export class K8sTopologyBackground {
 
       const head = p.trail[0];
 
-      // Draw neon green motion trail behind packet
+      // Draw sparkling neon-green comet tail
       if (p.trail.length > 1) {
-        for (let i = 1; i < p.trail.length; i++) {
-          const t1 = p.trail[i - 1];
-          const t2 = p.trail[i];
-          const fade = 1 - (i / p.trail.length);
+        for (let t = 1; t < p.trail.length; t++) {
+          const pt1 = p.trail[t - 1];
+          const pt2 = p.trail[t];
+          const fade = 1 - t / p.trail.length;
 
           ctx.beginPath();
-          ctx.moveTo(t1.x, t1.y);
-          ctx.lineTo(t2.x, t2.y);
-          ctx.strokeStyle = `rgba(0, 255, 136, ${fade * 0.75})`;
-          ctx.lineWidth = p.size * (1.0 - i * 0.07);
+          ctx.moveTo(pt1.x, pt1.y);
+          ctx.lineTo(pt2.x, pt2.y);
+          ctx.strokeStyle = `rgba(0, 255, 136, ${fade * 0.85})`;
+          ctx.lineWidth = p.size * (0.95 - t * 0.08);
           ctx.lineCap = 'round';
           ctx.stroke();
         }
       }
 
-      // Draw Neon Green Packet Glow & Head
-      ctx.shadowColor = p.glowColor;
+      // Neon-green comet head with high bloom
+      ctx.shadowColor = p.glow;
       ctx.shadowBlur = 18;
       ctx.fillStyle = p.color;
       ctx.beginPath();
       ctx.arc(head.x, head.y, p.size, 0, Math.PI * 2);
       ctx.fill();
 
-      // White-hot center core for high-energy look
+      // White-hot energy core
       ctx.shadowBlur = 0;
-      ctx.fillStyle = p.coreColor;
+      ctx.fillStyle = p.core;
       ctx.beginPath();
       ctx.arc(head.x, head.y, p.size * 0.45, 0, Math.PI * 2);
       ctx.fill();
@@ -445,180 +628,183 @@ export class K8sTopologyBackground {
     ctx.restore();
   }
 
-  renderNodes(ctx, timestamp) {
-    // Sort nodes so workers render before masters, giving clean layering
-    const sortedNodes = [...this.nodes].sort((a, b) => {
-      if (a.type === 'worker' && b.type === 'master') return -1;
-      if (a.type === 'master' && b.type === 'worker') return 1;
-      return a.y - b.y;
-    });
+  renderParticles(ctx) {
+    if (this.particles.length === 0) return;
+    ctx.save();
+    for (const pt of this.particles) {
+      ctx.fillStyle = `rgba(0, 255, 136, ${Math.max(0, pt.alpha)})`;
+      ctx.shadowColor = '#00ff88';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
 
-    for (const node of sortedNodes) {
-      // Gentle breathing glow oscillation
-      const breath = 0.85 + 0.15 * Math.sin(timestamp * 0.0018 + node.pulseOffset);
-      this.drawIsometricCube(ctx, node, breath);
+  renderPods(ctx, timestamp) {
+    for (const node of this.nodes) {
+      this.drawPod(ctx, node, timestamp);
     }
   }
 
-  drawIsometricCube(ctx, node, breath = 1.0) {
-    const { x, y, size, height, colors, type } = node;
-    const w = size;
-    const h = height;
-    const isoH = size * 0.52; // isometric angle compression
+  drawPod(ctx, node, timestamp) {
+    const { x, y, radius, color, glow, halo, type, hasSatellites, hasHelm, orbitAngle, energyLevel } = node;
 
-    // 1. Soft radial bloom glow underneath/around the cube
+    const currentRadius = radius * (1.0 + (energyLevel - 1.0) * 0.25);
+
+    // 1. Soft Ambient Halo
     ctx.save();
-    const glowRadius = Math.max(w, h) * (type === 'master' ? 2.6 : 2.1) * breath;
-    const radial = ctx.createRadialGradient(x, y, 2, x, y, glowRadius);
-    radial.addColorStop(0, colors.glow);
+    const haloRadius = currentRadius * 2.8 * energyLevel;
+    const radial = ctx.createRadialGradient(x, y, 2, x, y, haloRadius);
+    radial.addColorStop(0, halo);
     radial.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = radial;
     ctx.beginPath();
-    ctx.arc(x, y, glowRadius, 0, Math.PI * 2);
+    ctx.arc(x, y, haloRadius, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
-    // 2. Left Face (parallelogram)
+    // 2. Outer Status Pulse Ring
     ctx.save();
-    ctx.fillStyle = colors.left;
+    const pulseRing = currentRadius + 6 + 3 * Math.sin(timestamp * 0.003 + node.pulsePhase);
+    ctx.strokeStyle = `rgba(56, 189, 248, ${0.45 * energyLevel})`;
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([4, 4]);
     ctx.beginPath();
-    ctx.moveTo(x - w, y - isoH);
-    ctx.lineTo(x, y);
-    ctx.lineTo(x, y + h);
-    ctx.lineTo(x - w, y + h - isoH);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.strokeStyle = colors.stroke;
-    ctx.lineWidth = 1;
+    ctx.arc(x, y, pulseRing, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
 
-    // 3. Right Face (parallelogram)
+    // 3. Main Pod Body (Hexagon for service/master, circle for worker)
     ctx.save();
-    ctx.fillStyle = colors.right;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x + w, y - isoH);
-    ctx.lineTo(x + w, y + h - isoH);
-    ctx.lineTo(x, y + h);
-    ctx.closePath();
-    ctx.fill();
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = 14 * energyLevel;
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.88)'; // deep dark core
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.0;
 
-    ctx.strokeStyle = colors.stroke;
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.restore();
-
-    // 4. Top Face (rhombus)
-    ctx.save();
-    ctx.fillStyle = colors.top;
-    ctx.beginPath();
-    ctx.moveTo(x, y - isoH * 2);
-    ctx.lineTo(x + w, y - isoH);
-    ctx.lineTo(x, y);
-    ctx.lineTo(x - w, y - isoH);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.strokeStyle = colors.stroke;
-    ctx.lineWidth = 1.3;
-    ctx.stroke();
-    ctx.restore();
-
-    // 5. Front Emblems: K8s Helm for master, padlock for worker/etcd
-    if (type === 'master') {
-      this.drawKubernetesHelm(ctx, x - w * 0.48, y + h * 0.46 - isoH * 0.5, size * 0.44);
+    if (type === 'control-plane' || type === 'service') {
+      this.drawHexagon(ctx, x, y, currentRadius);
+      ctx.fill();
+      ctx.stroke();
     } else {
-      this.drawPadlock(ctx, x - w * 0.48, y + h * 0.46 - isoH * 0.5, size * 0.28);
+      ctx.beginPath();
+      ctx.arc(x, y, currentRadius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // 4. Inner Icon / Logo
+    if (hasHelm) {
+      // Rotating Kubernetes Steering Helm
+      this.drawMiniHelm(ctx, x, y, currentRadius * 0.65, timestamp * 0.001);
+    } else if (type === 'database') {
+      // Cylindrical stateful disk icon
+      this.drawDatabaseIcon(ctx, x, y, currentRadius * 0.55);
+    } else {
+      // Microservice core indicator
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x, y, currentRadius * 0.35, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // 5. Orbiting Envoy Sidecar Proxies
+    if (hasSatellites > 0) {
+      ctx.save();
+      const orbitR = currentRadius + 14;
+
+      for (let s = 0; s < hasSatellites; s++) {
+        const ang = orbitAngle + (s * Math.PI * 2) / hasSatellites;
+        const satX = x + Math.cos(ang) * orbitR;
+        const satY = y + Math.sin(ang) * orbitR;
+
+        // Satellite Envoy Dot
+        ctx.shadowColor = '#00ff88';
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = '#00ff88';
+        ctx.beginPath();
+        ctx.arc(satX, satY, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(satX, satY, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
     }
   }
 
-  drawKubernetesHelm(ctx, cx, cy, radius) {
+  drawHexagon(ctx, cx, cy, radius) {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const angle = (i * Math.PI) / 3 - Math.PI / 6;
+      const x = cx + radius * Math.cos(angle);
+      const y = cy + radius * Math.sin(angle);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+  }
+
+  drawMiniHelm(ctx, cx, cy, radius, rotation) {
     ctx.save();
     ctx.translate(cx, cy);
-    // Skew to align naturally with the isometric left plane
-    ctx.transform(1, 0.5, 0, 1, 0, 0);
+    ctx.rotate(rotation);
 
     ctx.strokeStyle = '#ffffff';
-    ctx.fillStyle = '#ffffff';
-    ctx.lineWidth = 1.4;
-    ctx.shadowColor = '#60a5fa';
-    ctx.shadowBlur = 8;
+    ctx.lineWidth = 1.3;
 
     const spokes = 7;
-    const step = (Math.PI * 2) / spokes;
-    const outerR = radius;
-    const innerR = radius * 0.50;
-    const spokeR = radius * 1.25;
-
-    // 7 Spoke handles radiating outward
     for (let i = 0; i < spokes; i++) {
-      const angle = i * step - Math.PI / 2;
-      const x1 = Math.cos(angle) * (outerR * 0.65);
-      const y1 = Math.sin(angle) * (outerR * 0.65);
-      const x2 = Math.cos(angle) * spokeR;
-      const y2 = Math.sin(angle) * spokeR;
-
+      const ang = (i * Math.PI * 2) / spokes;
       ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(ang) * radius, Math.sin(ang) * radius);
       ctx.stroke();
 
-      // Tiny round handle tip
+      // Outer spoke tip
+      ctx.fillStyle = '#38bdf8';
       ctx.beginPath();
-      ctx.arc(x2, y2, 1.2, 0, Math.PI * 2);
+      ctx.arc(Math.cos(ang) * radius * 1.15, Math.sin(ang) * radius * 1.15, 1.4, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // Outer wheel heptagon rim
+    // Center hub
+    ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    for (let i = 0; i <= spokes; i++) {
-      const angle = (i % spokes) * step - Math.PI / 2;
-      const px = Math.cos(angle) * outerR;
-      const py = Math.sin(angle) * outerR;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    ctx.stroke();
-
-    // Inner hub circle
-    ctx.beginPath();
-    ctx.arc(0, 0, innerR * 0.6, 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.arc(0, 0, radius * 0.35, 0, Math.PI * 2);
+    ctx.fill();
 
     ctx.restore();
   }
 
-  drawPadlock(ctx, cx, cy, radius) {
+  drawDatabaseIcon(ctx, cx, cy, radius) {
     ctx.save();
-    ctx.translate(cx, cy);
-    ctx.transform(1, 0.5, 0, 1, 0, 0); // isometric skew
+    ctx.strokeStyle = '#fb923c';
+    ctx.lineWidth = 1.4;
 
-    ctx.strokeStyle = '#ffffff';
-    ctx.fillStyle = '#ffffff';
-    ctx.lineWidth = 1.2;
-    ctx.shadowColor = '#fb923c';
-    ctx.shadowBlur = 5;
+    const w = radius * 1.2;
+    const h = radius * 0.45;
 
-    const w = radius * 1.3;
-    const h = radius * 1.1;
-
-    // Shackle (arch)
+    // 2 stacked cylinders
     ctx.beginPath();
-    ctx.arc(0, -h * 0.42, w * 0.36, Math.PI, 0, false);
+    ctx.ellipse(cx, cy - h * 0.7, w * 0.6, h * 0.5, 0, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Lock body
-    ctx.fillRect(-w * 0.5, -h * 0.38, w, h);
-
-    // Keyhole
-    ctx.fillStyle = '#ea580c';
     ctx.beginPath();
-    ctx.arc(0, -h * 0.05, w * 0.16, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillRect(-w * 0.07, -h * 0.05, w * 0.14, h * 0.28);
+    ctx.ellipse(cx, cy + h * 0.7, w * 0.6, h * 0.5, 0, 0, Math.PI);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(cx - w * 0.6, cy - h * 0.7);
+    ctx.lineTo(cx - w * 0.6, cy + h * 0.7);
+    ctx.moveTo(cx + w * 0.6, cy - h * 0.7);
+    ctx.lineTo(cx + w * 0.6, cy + h * 0.7);
+    ctx.stroke();
 
     ctx.restore();
   }
@@ -630,12 +816,12 @@ export class K8sTopologyBackground {
   start() {
     if (this.isRunning) return;
     this.isRunning = true;
-    this.lastFrameTime = performance.now();
+    this.lastTime = performance.now();
 
     const loop = (now) => {
       if (!this.isRunning) return;
-      const dt = Math.min((now - this.lastFrameTime) / 1000, 0.1); // clamp delta
-      this.lastFrameTime = now;
+      const dt = Math.min((now - this.lastTime) / 1000, 0.1);
+      this.lastTime = now;
 
       this.update(dt, now);
       this.render(now);
@@ -659,5 +845,8 @@ export class K8sTopologyBackground {
  * Convenience helper to initialize and bind the background canvas
  */
 export function initK8sBackground(canvasId = 'k8s-topology-canvas') {
-  return new K8sTopologyBackground(canvasId);
+  return new K8sFunGalaxyBackground(canvasId);
 }
+
+export { K8sFunGalaxyBackground as K8sTopologyBackground };
+
